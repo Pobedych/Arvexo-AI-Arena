@@ -1,0 +1,171 @@
+name: "🚀 Arvexo Arena CI/CD"
+
+run-name: "🚀 Deploy Arvexo Arena • ${{ github.ref_name }} • @${{ github.actor }}"
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - feat/mvp
+  workflow_dispatch:
+
+concurrency:
+  group: "arena-deploy-${{ github.ref }}"
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "22"
+  PYTHON_VERSION: "3.12"
+  VPS_PROJECT_PATH: "/var/www/Arvexo-Arena"
+  ARENA_HTTP_PORT: "9200"
+  RELEASE_ARCHIVE: "arvexo-arena-release.tgz"
+
+jobs:
+  quality:
+    name: "🧪 Checks & build"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: "📥 Checkout repository"
+        uses: actions/checkout@v4
+
+      - name: "🟢 Setup Node.js ${{ env.NODE_VERSION }}"
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: "📦 Install frontend dependencies"
+        working-directory: frontend
+        run: npm ci
+
+      - name: "✨ Lint frontend"
+        working-directory: frontend
+        run: npm run lint
+
+      - name: "🏗️ Build frontend"
+        working-directory: frontend
+        run: npm run build
+
+      - name: "🐍 Setup Python ${{ env.PYTHON_VERSION }}"
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: "📦 Install backend dependencies"
+        working-directory: backend
+        run: pip install -r requirements.txt
+
+      - name: "🧠 Compile backend"
+        working-directory: backend
+        run: python -m compileall app
+
+  deploy:
+    name: "🚢 Deploy to VPS"
+    runs-on: ubuntu-latest
+    needs: quality
+    timeout-minutes: 20
+    environment:
+      name: production
+      url: https://arena.arvexo.ru
+
+    steps:
+      - name: "📥 Checkout repository"
+        uses: actions/checkout@v4
+
+      - name: "🧹 Prepare clean release archive"
+        run: |
+          set -euo pipefail
+
+          tar \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='backend/.env' \
+            --exclude='backend/.venv' \
+            --exclude='backend/arena_dev.db' \
+            --exclude='**/__pycache__' \
+            --exclude='frontend/.next' \
+            --exclude='frontend/node_modules' \
+            --exclude='frontend/tsconfig.tsbuildinfo' \
+            -czf "${RELEASE_ARCHIVE}" .
+
+          echo "✅ Release archive is ready:"
+          ls -lh "${RELEASE_ARCHIVE}"
+
+      - name: "🔐 Configure SSH"
+        run: |
+          set -euo pipefail
+
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: "📤 Upload release archive"
+        run: |
+          set -euo pipefail
+
+          scp "${RELEASE_ARCHIVE}" "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/tmp/${RELEASE_ARCHIVE}"
+
+      - name: "🚀 Deploy release on server"
+        run: |
+          set -euo pipefail
+
+          ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+            "VPS_PROJECT_PATH='${VPS_PROJECT_PATH}' ARENA_HTTP_PORT='${ARENA_HTTP_PORT}' RELEASE_ARCHIVE='${RELEASE_ARCHIVE}' bash -s" <<'REMOTE'
+          set -euo pipefail
+
+          RELEASE_DIR="$(dirname "${VPS_PROJECT_PATH}")/.arvexo-arena-release"
+          ENV_BACKUP="/tmp/arvexo-arena.backend.env"
+
+          echo "📁 Preparing release directory"
+          rm -rf "${RELEASE_DIR}"
+          mkdir -p "${RELEASE_DIR}" "${VPS_PROJECT_PATH}/backend"
+
+          if [ -f "${VPS_PROJECT_PATH}/backend/.env" ]; then
+            cp "${VPS_PROJECT_PATH}/backend/.env" "${ENV_BACKUP}"
+            echo "🔒 Preserved existing backend/.env"
+          fi
+
+          tar -xzf "/tmp/${RELEASE_ARCHIVE}" -C "${RELEASE_DIR}"
+
+          echo "🔄 Syncing files into ${VPS_PROJECT_PATH}"
+          find "${VPS_PROJECT_PATH}" -mindepth 1 -maxdepth 1 ! -name backend -exec rm -rf {} +
+          find "${VPS_PROJECT_PATH}/backend" -mindepth 1 -maxdepth 1 ! -name .env -exec rm -rf {} +
+          cp -a "${RELEASE_DIR}/." "${VPS_PROJECT_PATH}/"
+
+          if [ -f "${ENV_BACKUP}" ]; then
+            cp "${ENV_BACKUP}" "${VPS_PROJECT_PATH}/backend/.env"
+          elif [ ! -f "${VPS_PROJECT_PATH}/backend/.env" ]; then
+            cp "${VPS_PROJECT_PATH}/backend/.env.example" "${VPS_PROJECT_PATH}/backend/.env"
+            echo "⚠️ Created backend/.env from example. Update production secrets on the server."
+          fi
+
+          echo "🐳 Rebuilding Docker services"
+          cd "${VPS_PROJECT_PATH}"
+          ARENA_HTTP_PORT="${ARENA_HTTP_PORT}" docker compose up -d --build
+
+          echo "🌱 Seeding AI Track"
+          docker compose exec -T backend python -m app.scripts.seed
+
+          echo "🧽 Cleaning temporary files"
+          rm -rf "${RELEASE_DIR}" "/tmp/${RELEASE_ARCHIVE}"
+          REMOTE
+
+      - name: "💚 Health check"
+        run: |
+          set -euo pipefail
+
+          ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+            "curl --fail --show-error --silent http://127.0.0.1:${ARENA_HTTP_PORT}/api/health"
+
+          echo
+          echo "✅ Arena is healthy: https://arena.arvexo.ru"
