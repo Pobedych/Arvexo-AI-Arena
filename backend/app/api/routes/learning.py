@@ -112,7 +112,7 @@ def get_lesson(lesson_id: UUID, db: Session = Depends(get_db), current_user: Are
         "order": lesson.order,
         "status": progress.get(str(lesson.id)).status.value if progress.get(str(lesson.id)) else "not_started",
         "questions": [
-            QuestionOut(id=q.id, prompt=q.prompt, type=q.type.value, options=q.options, points=q.points, explanation=q.explanation, correct_answer=q.correct_answer)
+            QuestionOut(id=q.id, prompt=q.prompt, type=q.type.value, options=q.options, points=q.points)
             for q in lesson.questions
             if q.status == ContentStatus.published
         ],

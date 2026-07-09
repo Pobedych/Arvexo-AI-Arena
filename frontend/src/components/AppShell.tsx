@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
+import { api, type ApiUser } from "@/lib/api";
 
 const dockItems = [
   { href: "/app/dashboard", label: "Обзор" },
@@ -13,6 +15,20 @@ const dockItems = [
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const [user, setUser] = useState<ApiUser | null>(null);
+
+  useEffect(() => {
+    api<ApiUser>("/auth/me").then(setUser).catch(() => undefined);
+  }, []);
+
+  const displayName = user?.display_name ?? "Пользователь";
+  const initials = displayName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
 
   return (
     <div className="min-h-screen flex items-center justify-center px-6 pt-6 pb-14">
@@ -37,9 +53,9 @@ export default function AppShell({ children }: { children: ReactNode }) {
               className="flex items-center gap-2 border-l border-[rgba(21,23,28,.08)] pl-3 hover:opacity-80 transition-opacity"
             >
               <span className="w-[30px] h-[30px] rounded-full bg-[#16a34a] text-white grid place-items-center font-bold text-[11.5px]">
-                АК
+                {initials || "A"}
               </span>
-              <span className="text-[12.5px] font-semibold">Андрей</span>
+              <span className="text-[12.5px] font-semibold">{displayName}</span>
             </Link>
           </div>
         </div>

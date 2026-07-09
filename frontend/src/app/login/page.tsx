@@ -14,7 +14,7 @@ export default function Login() {
           Arena использует единый аккаунт экосистемы Arvexo. Пароли и регистрация — на стороне Arvexo Account.
         </p>
         <Link
-          href="/api/auth/start?return_to=/app/dashboard"
+          href="/api/auth/start?return_to=/onboarding"
           className="inline-flex items-center justify-center w-full h-12.5 px-6 rounded-[10px] bg-[#16a34a] text-white font-bold text-[14.5px] hover:opacity-90 transition-opacity"
         >
           Продолжить с Arvexo Account

@@ -1,48 +1,180 @@
-import Link from "next/link";
+"use client";
 
-export default function TournamentInvite() {
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { api, formatDateTime, type Tournament, type Track } from "@/lib/api";
+
+export default function TournamentPage() {
+  return (
+    <Suspense fallback={<div className="text-sm text-[#6b6f76]">Загружаем турниры...</div>}>
+      <TournamentView />
+    </Suspense>
+  );
+}
+
+function TournamentView() {
+  const router = useRouter();
+  const search = useSearchParams();
+  const [track, setTrack] = useState<Track | null>(null);
+  const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  function refresh() {
+    Promise.all([api<Track>("/tracks/ai"), api<Tournament[]>("/tournaments")])
+      .then(([trackData, tournamentData]) => {
+        setTrack(trackData);
+        setTournaments(tournamentData);
+      });
+  }
+
+  useEffect(() => {
+    Promise.all([api<Track>("/tracks/ai"), api<Tournament[]>("/tournaments")])
+      .then(([trackData, tournamentData]) => {
+        setTrack(trackData);
+        setTournaments(tournamentData);
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const primary = useMemo(
+    () =>
+      tournaments.find((item) => item.id === search.get("id")) ??
+      tournaments.find((item) => item.status === "active") ??
+      tournaments.find((item) => item.status === "published") ??
+      tournaments.find((item) => item.participation_status) ??
+      tournaments[0],
+    [tournaments, search],
+  );
+
+  async function register(tournament: Tournament) {
+    setBusyId(tournament.id);
+    setError(null);
+    try {
+      await api<{ status: string }>(`/tournaments/${tournament.id}/register`, { method: "POST" });
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось зарегистрироваться");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function start(tournament: Tournament) {
+    setBusyId(tournament.id);
+    setError(null);
+    try {
+      if (!tournament.participation_status || tournament.participation_status === "invited") {
+        await api<{ status: string }>(`/tournaments/${tournament.id}/register`, { method: "POST" });
+      }
+      await api<{ attempt_id: string }>(`/tournaments/${tournament.id}/start`, { method: "POST" });
+      router.push(`/app/tournament/live?id=${tournament.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось начать попытку");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  if (loading) {
+    return <div className="text-sm text-[#6b6f76]">Загружаем турниры...</div>;
+  }
+
+  if (!primary) {
+    return <div className="text-sm text-[#6b6f76]">Пока нет доступных турниров.</div>;
+  }
+
   return (
     <div>
       <div className="inline-flex items-center gap-1.5 bg-[#16a34a] text-white rounded-full py-1.5 px-3.5 text-[11.5px] font-bold mb-4">
-        <span className="w-1.5 h-1.5 rounded-full bg-white animate-[pulse_1.6s_infinite]" /> Регистрация открыта
+        <span className="w-1.5 h-1.5 rounded-full bg-white animate-[pulse_1.6s_infinite]" /> {statusLabel(primary)}
       </div>
-      <h1 className="font-[family-name:var(--font-display)] text-[clamp(28px,4vw,48px)] font-semibold tracking-[-.02em] mb-6.5">
-        AI Basics Tournament
+      <h1 className="font-[family-name:var(--font-display)] text-[clamp(28px,4vw,48px)] font-semibold mb-6.5">
+        {primary.title}
       </h1>
 
       <div className="grid md:grid-cols-[1.5fr_1fr] gap-3.5">
         <div className="rounded-[26px] bg-white border border-[rgba(21,23,28,.07)] p-6.5 shadow-[0_16px_40px_-32px_rgba(21,23,28,.35)]">
-          <p className="text-sm leading-relaxed text-[#6b6f76] mb-5 max-w-[420px]">
-            Проверь знания AI Track: данные, ML-задачи, train/test split, метрики, responsible AI.
-          </p>
+          <p className="text-sm leading-relaxed text-[#6b6f76] mb-5 max-w-[480px]">{primary.description}</p>
           <div className="grid gap-2 mb-5.5">
-            <div className="flex justify-between py-2.5 px-3.5 rounded-xl bg-[#f6f4ee] text-[12.5px]">
-              <span className="text-[#6b6f76]">Формат</span>
-              <strong>20 задач · 100 баллов</strong>
-            </div>
-            <div className="flex justify-between py-2.5 px-3.5 rounded-xl bg-[#f6f4ee] text-[12.5px]">
-              <span className="text-[#6b6f76]">Готовность</span>
-              <strong className="text-[#16a34a]">42%</strong>
-            </div>
+            <Info label="Формат" value={`${primary.question_count} задач · ${primary.max_score} баллов`} />
+            <Info label="Готовность" value={`${track?.progress_percent ?? 0}%`} accent />
+            <Info label="Статус участия" value={participationLabel(primary.participation_status)} />
           </div>
-          <Link
-            href="/app/tournament/live"
-            className="inline-flex items-center h-12 px-6 rounded-full bg-[#16a34a] text-white font-bold text-[14.5px] shadow-[0_14px_28px_-14px_rgba(22,163,74,.5)] hover:opacity-87 transition-opacity"
-          >
-            Участвовать →
-          </Link>
+          {error && <p className="text-[#ff4d3d] text-xs font-semibold mb-3">{error}</p>}
+          <div className="flex gap-2.5 flex-wrap">
+            {primary.status === "active" ? (
+              <button
+                onClick={() => start(primary)}
+                disabled={busyId === primary.id || ["submitted", "auto_submitted"].includes(primary.participation_status ?? "")}
+                className="inline-flex items-center h-12 px-6 rounded-full bg-[#16a34a] text-white font-bold text-[14.5px] shadow-[0_14px_28px_-14px_rgba(22,163,74,.5)] hover:opacity-87 transition-opacity disabled:opacity-45"
+              >
+                {primary.participation_status === "in_progress" ? "Продолжить попытку" : "Начать попытку"}
+              </button>
+            ) : (
+              <button
+                onClick={() => register(primary)}
+                disabled={busyId === primary.id || primary.participation_status === "registered"}
+                className="inline-flex items-center h-12 px-6 rounded-full bg-[#16a34a] text-white font-bold text-[14.5px] shadow-[0_14px_28px_-14px_rgba(22,163,74,.5)] hover:opacity-87 transition-opacity disabled:opacity-45"
+              >
+                {primary.participation_status === "registered" ? "Ты зарегистрирован" : "Зарегистрироваться"}
+              </button>
+            )}
+            {["submitted", "auto_submitted"].includes(primary.participation_status ?? "") && (
+              <button onClick={() => router.push(`/app/tournament/result?id=${primary.id}`)} className="inline-flex items-center h-12 px-6 rounded-full bg-[#15171c] text-white font-bold text-[14.5px] hover:opacity-87 transition-opacity">
+                Открыть результат
+              </button>
+            )}
+          </div>
         </div>
         <div className="rounded-[26px] bg-[#15171c] text-white p-6.5 shadow-[0_16px_40px_-32px_rgba(21,23,28,.35)]">
           <div className="w-16 h-16 rounded-[18px] bg-[#ffb100] text-[#15171c] grid place-items-center mb-4">
-            <strong className="text-[22px] font-extrabold leading-none">20</strong>
+            <strong className="text-[22px] font-extrabold leading-none">{primary.question_count}</strong>
           </div>
-          <p className="text-[11.5px] text-white/50 mb-1">Окно старта</p>
-          <h3 className="text-[19px] font-bold mb-2">10:00–18:00</h3>
+          <p className="text-[11.5px] text-white/50 mb-1">Окно турнира</p>
+          <h3 className="text-[19px] font-bold mb-2">{formatDateTime(primary.starts_at)}</h3>
           <p className="text-xs text-white/55">
-            Попытка: <strong className="text-white">60 минут</strong>
+            Попытка: <strong className="text-white">{primary.duration_minutes} минут</strong>
           </p>
         </div>
       </div>
+
+      {tournaments.length > 1 && (
+        <div className="mt-5 grid gap-2">
+          {tournaments.filter((item) => item.id !== primary.id).map((item) => (
+            <button key={item.id} onClick={() => router.push(`/app/tournament?id=${item.id}`)} className="text-left rounded-2xl border border-[rgba(21,23,28,.08)] bg-white px-4 py-3">
+              <strong className="text-sm">{item.title}</strong>
+              <span className="block text-[11px] text-[#6b6f76]">{statusLabel(item)} · {formatDateTime(item.starts_at)}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
+}
+
+function Info({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
+  return (
+    <div className="flex justify-between py-2.5 px-3.5 rounded-xl bg-[#f6f4ee] text-[12.5px] gap-3">
+      <span className="text-[#6b6f76]">{label}</span>
+      <strong className={accent ? "text-[#16a34a]" : ""}>{value}</strong>
+    </div>
+  );
+}
+
+function statusLabel(tournament: Tournament) {
+  if (tournament.status === "active") return "Турнир активен";
+  if (tournament.status === "published") return "Регистрация открыта";
+  if (tournament.status === "finished") return "Турнир завершён";
+  return tournament.status;
+}
+
+function participationLabel(status: Tournament["participation_status"]) {
+  if (status === "invited") return "Есть приглашение";
+  if (status === "registered") return "Зарегистрирован";
+  if (status === "in_progress") return "Попытка начата";
+  if (status === "submitted") return "Ответы отправлены";
+  if (status === "auto_submitted") return "Автоотправка";
+  return "Не зарегистрирован";
 }
