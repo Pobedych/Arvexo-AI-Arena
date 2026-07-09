@@ -26,7 +26,8 @@ function TournamentView() {
       .then(([trackData, tournamentData]) => {
         setTrack(trackData);
         setTournaments(tournamentData);
-      });
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : "Не удалось обновить турниры"));
   }
 
   useEffect(() => {
@@ -35,6 +36,7 @@ function TournamentView() {
         setTrack(trackData);
         setTournaments(tournamentData);
       })
+      .catch((err) => setError(err instanceof Error ? err.message : "Не удалось загрузить турниры"))
       .finally(() => setLoading(false));
   }, []);
 
@@ -82,7 +84,7 @@ function TournamentView() {
   }
 
   if (!primary) {
-    return <div className="text-sm text-[#6b6f76]">Пока нет доступных турниров.</div>;
+    return <div className={`text-sm ${error ? "text-[#ff4d3d]" : "text-[#6b6f76]"}`}>{error ?? "Пока нет доступных турниров."}</div>;
   }
 
   const canRegister = primary.status === "published" && primary.participation_status === "invited";

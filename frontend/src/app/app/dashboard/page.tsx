@@ -20,6 +20,7 @@ export default function Dashboard() {
   const [track, setTrack] = useState<Track | null>(null);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([api<ApiUser>("/auth/me"), api<Track>("/tracks/ai"), api<Tournament[]>("/tournaments")])
@@ -28,6 +29,7 @@ export default function Dashboard() {
         setTrack(trackData);
         setTournaments(tournamentData);
       })
+      .catch((err) => setLoadError(err instanceof Error ? err.message : "Не удалось загрузить арену"))
       .finally(() => setLoading(false));
   }, []);
 
@@ -40,8 +42,12 @@ export default function Dashboard() {
     [tournaments],
   );
 
-  if (loading || !track) {
+  if (loading) {
     return <div className="text-sm text-[#6b6f76]">Загружаем твою арену...</div>;
+  }
+
+  if (loadError || !track) {
+    return <div className="text-sm text-[#ff4d3d]">{loadError ?? "Не удалось загрузить арену"}</div>;
   }
 
   return (

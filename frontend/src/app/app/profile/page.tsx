@@ -15,6 +15,7 @@ export default function Profile() {
   const [track, setTrack] = useState<Track | null>(null);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([api<ApiUser>("/auth/me"), api<Track>("/tracks/ai"), api<Tournament[]>("/tournaments")])
@@ -23,6 +24,7 @@ export default function Profile() {
         setTrack(trackData);
         setTournaments(tournamentData);
       })
+      .catch((err) => setLoadError(err instanceof Error ? err.message : "Не удалось загрузить профиль"))
       .finally(() => setLoading(false));
   }, []);
 
@@ -39,8 +41,12 @@ export default function Profile() {
 
   const finishedTournaments = tournaments.filter((item) => ["submitted", "auto_submitted"].includes(item.participation_status ?? "")).length;
 
-  if (loading || !user || !track) {
+  if (loading) {
     return <div className="text-sm text-[#6b6f76]">Загружаем профиль...</div>;
+  }
+
+  if (loadError || !user || !track) {
+    return <div className="text-sm text-[#ff4d3d]">{loadError ?? "Не удалось загрузить профиль"}</div>;
   }
 
   return (
