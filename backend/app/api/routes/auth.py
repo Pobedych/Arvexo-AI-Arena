@@ -15,7 +15,12 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.get("/start")
 def auth_start(response: Response, return_to: str = "/app/dashboard") -> RedirectResponse:
-    return RedirectResponse(build_start_response(response, return_to), status_code=302)
+    url = build_start_response(response, return_to)
+    redirect = RedirectResponse(url, status_code=302)
+    for header in response.raw_headers:
+        if header[0].lower() == b"set-cookie":
+            redirect.raw_headers.append(header)
+    return redirect
 
 
 @router.get("/callback")
