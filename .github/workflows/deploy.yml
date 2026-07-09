@@ -22,7 +22,8 @@ env:
   PYTHON_VERSION: "3.12"
   VPS_PROJECT_PATH: "/var/www/Arvexo-Arena"
   ARENA_HTTP_PORT: "9200"
-  RELEASE_ARCHIVE: "arvexo-arena-release.tgz"
+  RELEASE_ARCHIVE: "/tmp/arvexo-arena-release.tgz"
+  RELEASE_ARCHIVE_NAME: "arvexo-arena-release.tgz"
 
 jobs:
   quality:
@@ -84,6 +85,8 @@ jobs:
         run: |
           set -euo pipefail
 
+          rm -f "${RELEASE_ARCHIVE}"
+
           tar \
             --exclude='.git' \
             --exclude='.github' \
@@ -113,14 +116,14 @@ jobs:
         run: |
           set -euo pipefail
 
-          scp "${RELEASE_ARCHIVE}" "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/tmp/${RELEASE_ARCHIVE}"
+          scp "${RELEASE_ARCHIVE}" "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/tmp/${RELEASE_ARCHIVE_NAME}"
 
       - name: "🚀 Deploy release on server"
         run: |
           set -euo pipefail
 
           ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
-            "VPS_PROJECT_PATH='${VPS_PROJECT_PATH}' ARENA_HTTP_PORT='${ARENA_HTTP_PORT}' RELEASE_ARCHIVE='${RELEASE_ARCHIVE}' bash -s" <<'REMOTE'
+            "VPS_PROJECT_PATH='${VPS_PROJECT_PATH}' ARENA_HTTP_PORT='${ARENA_HTTP_PORT}' RELEASE_ARCHIVE_NAME='${RELEASE_ARCHIVE_NAME}' bash -s" <<'REMOTE'
           set -euo pipefail
 
           RELEASE_DIR="$(dirname "${VPS_PROJECT_PATH}")/.arvexo-arena-release"
@@ -135,7 +138,7 @@ jobs:
             echo "🔒 Preserved existing backend/.env"
           fi
 
-          tar -xzf "/tmp/${RELEASE_ARCHIVE}" -C "${RELEASE_DIR}"
+          tar -xzf "/tmp/${RELEASE_ARCHIVE_NAME}" -C "${RELEASE_DIR}"
 
           echo "🔄 Syncing files into ${VPS_PROJECT_PATH}"
           find "${VPS_PROJECT_PATH}" -mindepth 1 -maxdepth 1 ! -name backend -exec rm -rf {} +
@@ -157,7 +160,7 @@ jobs:
           docker compose exec -T backend python -m app.scripts.seed
 
           echo "🧽 Cleaning temporary files"
-          rm -rf "${RELEASE_DIR}" "/tmp/${RELEASE_ARCHIVE}"
+          rm -rf "${RELEASE_DIR}" "/tmp/${RELEASE_ARCHIVE_NAME}"
           REMOTE
 
       - name: "💚 Health check"
