@@ -1,0 +1,58 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: arvexo-arena-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: arvexo_arena
+      POSTGRES_USER: arvexo
+      POSTGRES_PASSWORD: arvexo
+    ports:
+      - "5450:5432"
+    volumes:
+      - arena-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U arvexo -d arvexo_arena"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build:
+      context: ./backend
+    container_name: arvexo-arena-backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_BACKEND_URL: http://backend:8000
+    container_name: arvexo-arena-frontend
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_BACKEND_URL: http://backend:8000
+    depends_on:
+      - backend
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: arvexo-arena-nginx
+    restart: unless-stopped
+    ports:
+      - "${ARENA_HTTP_PORT:-9200}:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - frontend
+      - backend
+
+volumes:
+  arena-postgres-data:
