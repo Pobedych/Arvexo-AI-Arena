@@ -1,4 +1,8 @@
+"use client";
+
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 const competitors = [
   { name: "Stepik", gap: "Курсы без турнира — некому показать результат" },
@@ -30,6 +34,32 @@ const benefits = [
 ];
 
 export default function Landing() {
+  const router = useRouter();
+  const [checkingSession, setCheckingSession] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/auth/me", { credentials: "include" })
+      .then((response) => {
+        if (cancelled) return;
+        if (response.ok) {
+          router.replace("/app/dashboard");
+        } else {
+          setCheckingSession(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setCheckingSession(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
+
+  if (checkingSession) {
+    return <div className="min-h-screen bg-white" />;
+  }
+
   return (
     <div className="min-h-screen bg-white">
       {/* nav */}

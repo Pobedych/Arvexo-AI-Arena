@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 const reasonCopy: Record<string, { glyph: string; title: string }> = {
   expired: {
@@ -16,9 +16,35 @@ const reasonCopy: Record<string, { glyph: string; title: string }> = {
 };
 
 function LoginContent() {
+  const router = useRouter();
   const params = useSearchParams();
   const reason = params.get("reason");
   const notice = reason ? reasonCopy[reason] : null;
+  const [checkingSession, setCheckingSession] = useState(!reason);
+
+  useEffect(() => {
+    if (reason) return;
+    let cancelled = false;
+    fetch("/api/auth/me", { credentials: "include" })
+      .then((response) => {
+        if (cancelled) return;
+        if (response.ok) {
+          router.replace("/app/dashboard");
+        } else {
+          setCheckingSession(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setCheckingSession(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [reason, router]);
+
+  if (checkingSession) {
+    return <div className="min-h-screen bg-white" />;
+  }
 
   return (
     <div className="min-h-screen bg-white flex items-center justify-center p-6">
