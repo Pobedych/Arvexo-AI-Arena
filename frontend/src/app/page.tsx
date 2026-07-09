@@ -33,26 +33,26 @@ export default function Landing() {
   return (
     <div className="min-h-screen bg-white">
       {/* nav */}
-      <div className="sticky top-4 z-40 flex justify-center px-6 pt-2.5">
-        <div className="flex items-center gap-1.5 w-full max-w-[680px] py-2 pl-4.5 pr-2 rounded-full bg-[#15171c] shadow-[0_18px_44px_-22px_rgba(21,23,28,.55)]">
-          <Link href="/" className="flex items-center gap-2.5 mr-auto">
+      <div className="sticky top-4 z-40 flex justify-center px-4 sm:px-6 pt-2.5">
+        <div className="flex items-center gap-1.5 w-full max-w-[680px] py-2 pl-3.5 sm:pl-4.5 pr-2 rounded-full bg-[#15171c] shadow-[0_18px_44px_-22px_rgba(21,23,28,.55)]">
+          <Link href="/" className="flex items-center gap-2 sm:gap-2.5 mr-auto shrink-0">
             <span className="w-[26px] h-[26px] rounded-[7px] bg-[#16a34a] grid place-items-center text-white font-extrabold text-xs font-[family-name:var(--font-display)]">
               A
             </span>
-            <strong className="text-[13.5px] tracking-tight text-white">Arvexo Arena</strong>
+            <strong className="text-[13px] sm:text-[13.5px] tracking-tight text-white whitespace-nowrap">Arvexo Arena</strong>
           </Link>
-          <Link href="/tracks/ai" className="text-[12.5px] text-white/60 font-medium py-2 px-3 rounded-full hover:text-white hover:bg-white/10 transition-colors">
+          <Link href="/tracks/ai" className="hidden md:inline text-[12.5px] text-white/60 font-medium py-2 px-3 rounded-full hover:text-white hover:bg-white/10 transition-colors">
             AI Track
           </Link>
-          <Link href="/tournaments" className="text-[12.5px] text-white/60 font-medium py-2 px-3 rounded-full hover:text-white hover:bg-white/10 transition-colors">
+          <Link href="/tournaments" className="hidden md:inline text-[12.5px] text-white/60 font-medium py-2 px-3 rounded-full hover:text-white hover:bg-white/10 transition-colors">
             Турниры
           </Link>
-          <Link href="/employers" className="text-[12.5px] text-white/60 font-medium py-2 px-3 rounded-full hover:text-white hover:bg-white/10 transition-colors">
+          <Link href="/employers" className="hidden md:inline text-[12.5px] text-white/60 font-medium py-2 px-3 rounded-full hover:text-white hover:bg-white/10 transition-colors">
             Работодателям
           </Link>
           <Link
             href="/login"
-            className="inline-flex items-center h-9 px-4.5 rounded-full bg-[#16a34a] text-white font-bold text-[12.5px] whitespace-nowrap hover:opacity-88 transition-opacity"
+            className="inline-flex items-center h-9 px-3.5 sm:px-4.5 rounded-full bg-[#16a34a] text-white font-bold text-[12.5px] whitespace-nowrap hover:opacity-88 transition-opacity shrink-0"
           >
             Войти
           </Link>

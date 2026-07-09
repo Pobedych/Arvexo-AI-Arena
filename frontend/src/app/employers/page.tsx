@@ -3,17 +3,17 @@ import Link from "next/link";
 export default function Employers() {
   return (
     <div className="min-h-screen bg-white">
-      <div className="flex justify-between items-center w-[min(1120px,calc(100%-48px))] mx-auto py-6.5 border-b border-[rgba(21,23,28,.08)]">
-        <Link href="/" className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
-          <span className="w-[30px] h-[30px] rounded-lg bg-[#15171c] grid place-items-center text-white font-extrabold text-[13px] font-[family-name:var(--font-display)]">
+      <div className="flex justify-between items-center gap-2 w-[min(1120px,calc(100%-32px))] sm:w-[min(1120px,calc(100%-48px))] mx-auto py-4 sm:py-6.5 border-b border-[rgba(21,23,28,.08)]">
+        <Link href="/" className="flex items-center gap-2 sm:gap-2.5 hover:opacity-80 transition-opacity min-w-0">
+          <span className="w-[30px] h-[30px] rounded-lg bg-[#15171c] grid place-items-center text-white font-extrabold text-[13px] font-[family-name:var(--font-display)] shrink-0">
             A
           </span>
-          <strong className="text-[15px] tracking-tight">Arvexo Arena</strong>
-          <span className="text-[11px] text-[#6b6f76] bg-[#f6f4ee] rounded-full py-1 px-2.5 font-bold">Для работодателей</span>
+          <strong className="text-[15px] tracking-tight whitespace-nowrap">Arvexo Arena</strong>
+          <span className="hidden sm:inline text-[11px] text-[#6b6f76] bg-[#f6f4ee] rounded-full py-1 px-2.5 font-bold whitespace-nowrap">Для работодателей</span>
         </Link>
         <Link
           href="/"
-          className="inline-flex items-center h-[38px] px-4.5 rounded-lg border border-[rgba(21,23,28,.16)] text-[#15171c] font-semibold text-[13px] hover:bg-[#f6f4ee] transition-colors"
+          className="inline-flex items-center h-[38px] px-3.5 sm:px-4.5 rounded-lg border border-[rgba(21,23,28,.16)] text-[#15171c] font-semibold text-[13px] hover:bg-[#f6f4ee] transition-colors whitespace-nowrap shrink-0"
         >
           ← На сайт
         </Link>
