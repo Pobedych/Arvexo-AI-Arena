@@ -1,12 +1,37 @@
-import Link from "next/link";
+"use client";
 
-export default function Login() {
+import Link from "next/link";
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+
+const reasonCopy: Record<string, { glyph: string; title: string }> = {
+  expired: {
+    glyph: "⏳",
+    title: "Сессия устала и заснула — как модель без ранней остановки. Войди ещё раз.",
+  },
+  auth_failed: {
+    glyph: "🤖",
+    title: "Arvexo Account не подтвердил вход. Попробуй ещё раз — обычно это временный сбой.",
+  },
+};
+
+function LoginContent() {
+  const params = useSearchParams();
+  const reason = params.get("reason");
+  const notice = reason ? reasonCopy[reason] : null;
+
   return (
     <div className="min-h-screen bg-white flex items-center justify-center p-6">
       <div className="w-full max-w-[420px] text-center">
         <span className="inline-grid w-11 h-11 rounded-xl bg-[#15171c] place-items-center text-white font-extrabold text-[17px] font-[family-name:var(--font-display)] mb-6">
           A
         </span>
+        {notice && (
+          <div className="rounded-2xl bg-[#f6f4ee] border border-[rgba(21,23,28,.08)] py-3.5 px-4 mb-6 text-left flex gap-2.5 items-start">
+            <span className="text-lg leading-none">{notice.glyph}</span>
+            <p className="text-[12.5px] text-[#6b6f76] leading-relaxed">{notice.title}</p>
+          </div>
+        )}
         <h1 className="font-[family-name:var(--font-display)] text-[clamp(24px,3vw,32px)] font-semibold tracking-[-.02em] mb-3">
           Вход в Arvexo Arena
         </h1>
@@ -24,5 +49,13 @@ export default function Login() {
         </Link>
       </div>
     </div>
+  );
+}
+
+export default function Login() {
+  return (
+    <Suspense>
+      <LoginContent />
+    </Suspense>
   );
 }

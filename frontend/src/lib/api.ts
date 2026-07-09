@@ -138,7 +138,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   });
 
   if (response.status === 401 && typeof window !== "undefined") {
-    window.location.href = "/login";
+    window.location.href = "/login?reason=expired";
     throw new ApiError(401, "Authentication required");
   }
 

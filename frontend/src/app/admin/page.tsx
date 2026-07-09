@@ -94,6 +94,10 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
   if (init?.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
   const response = await fetch(`/api${path}`, { ...init, headers, credentials: "include" });
+  if (response.status === 403 && typeof window !== "undefined") {
+    window.location.href = "/403";
+    throw new Error("Admin access required");
+  }
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
     throw new Error(data.detail || "Не удалось выполнить запрос");

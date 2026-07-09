@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
@@ -27,8 +27,15 @@ def auth_start(response: Response, return_to: str = "/app/dashboard") -> Redirec
 async def auth_callback(code: str, state: str, request: Request, response: Response, db: Session = Depends(get_db)) -> RedirectResponse:
     from app.services.account_sso import validate_state
 
-    return_to = validate_state(request, state)
-    account_user = await exchange_code(code)
+    try:
+        return_to = validate_state(request, state)
+        account_user = await exchange_code(code)
+    except HTTPException:
+        failed = RedirectResponse(f"{settings.frontend_url}/login?reason=auth_failed", status_code=302)
+        failed.delete_cookie("arena_sso_state", path="/")
+        failed.delete_cookie("arena_return_to", path="/")
+        return failed
+
     user = upsert_arena_user(db, account_user)
     db.flush()
     create_session(db, user, request, response)
