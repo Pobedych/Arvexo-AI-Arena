@@ -218,3 +218,58 @@ def result(tournament_id: UUID, db: Session = Depends(get_db), current_user: Are
             }
         )
     return {"status": attempt.status.value, "score": attempt.score, "max_score": attempt.max_score, "review_available": True, "review": review}
+
+
+@router.get("/{tournament_id}/leaderboard")
+def leaderboard(tournament_id: UUID, db: Session = Depends(get_db), current_user: ArenaUser = Depends(get_current_user)):
+    tournament = _tournament(db, tournament_id)
+    _sync_status(tournament)
+    participation = _attempt(db, current_user, tournament)
+    if not participation:
+        raise HTTPException(status_code=403, detail="Not a participant")
+    if tournament.status != TournamentStatus.finished:
+        return {"tournament_id": tournament.id, "status": tournament.status.value, "rows": []}
+
+    attempts = (
+        db.query(TournamentAttempt)
+        .filter(
+            TournamentAttempt.tournament_id == tournament_id,
+            TournamentAttempt.status.in_([ParticipationStatus.submitted, ParticipationStatus.auto_submitted]),
+        )
+        .all()
+    )
+
+    def duration_seconds(attempt: TournamentAttempt) -> float:
+        if attempt.started_at and attempt.submitted_at:
+            return (_aware(attempt.submitted_at) - _aware(attempt.started_at)).total_seconds()
+        return float("inf")
+
+    def submitted_key(attempt: TournamentAttempt):
+        return _aware(attempt.submitted_at) if attempt.submitted_at else _aware(now_utc())
+
+    ordered = sorted(attempts, key=lambda a: (-a.score, duration_seconds(a), submitted_key(a)))
+    users = {u.id: u for u in db.query(ArenaUser).filter(ArenaUser.id.in_([a.user_id for a in ordered])).all()}
+
+    rows = []
+    rank = 0
+    prev_key = None
+    for index, attempt in enumerate(ordered):
+        key = (attempt.score, duration_seconds(attempt))
+        if key != prev_key:
+            rank = index + 1
+            prev_key = key
+        duration = duration_seconds(attempt)
+        user = users.get(attempt.user_id)
+        rows.append(
+            {
+                "rank": rank,
+                "display_name": user.display_name if user else "Участник",
+                "score": attempt.score,
+                "max_score": attempt.max_score,
+                "duration_seconds": None if duration == float("inf") else int(duration),
+                "status": attempt.status.value,
+                "is_you": attempt.user_id == current_user.id,
+            }
+        )
+
+    return {"tournament_id": tournament.id, "status": tournament.status.value, "rows": rows}

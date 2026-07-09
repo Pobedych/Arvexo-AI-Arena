@@ -95,6 +95,29 @@ export type TournamentResult = {
   }>;
 };
 
+export type PracticeCheckResult = {
+  is_correct: boolean;
+  points: number;
+  max_points: number;
+  explanation: string;
+};
+
+export type LeaderboardRow = {
+  rank: number;
+  display_name: string;
+  score: number;
+  max_score: number;
+  duration_seconds: number | null;
+  status: string;
+  is_you: boolean;
+};
+
+export type Leaderboard = {
+  tournament_id: string;
+  status: string;
+  rows: LeaderboardRow[];
+};
+
 export class ApiError extends Error {
   status: number;
 
@@ -149,4 +172,20 @@ export function formatDateTime(value: string) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+export function formatDuration(seconds: number | null) {
+  if (seconds === null) return "—";
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  return `${minutes} мин ${rest.toString().padStart(2, "0")} с`;
+}
+
+export type AnswerValue = number | number[] | string;
+
+export function toApiAnswer(question: Question, value: AnswerValue | undefined) {
+  if (question.type === "single_choice") return { option: value };
+  if (question.type === "multiple_choice") return { options: Array.isArray(value) ? value : [] };
+  if (question.type === "number") return { number: Number(value) };
+  return { text: String(value ?? "") };
 }

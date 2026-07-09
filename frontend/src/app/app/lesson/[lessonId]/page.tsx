@@ -3,9 +3,8 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { api, type Lesson, type Question } from "@/lib/api";
+import { api, toApiAnswer, type AnswerValue, type Lesson, type Question } from "@/lib/api";
 
-type AnswerValue = number | number[] | string;
 type SubmitResult = {
   score: number;
   max_score: number;
@@ -208,11 +207,4 @@ function Choice({ selected, disabled, onClick, children }: { selected: boolean; 
       {children}
     </button>
   );
-}
-
-function toApiAnswer(question: Question, value: AnswerValue | undefined) {
-  if (question.type === "single_choice") return { option: value };
-  if (question.type === "multiple_choice") return { options: Array.isArray(value) ? value : [] };
-  if (question.type === "number") return { number: Number(value) };
-  return { text: String(value ?? "") };
 }

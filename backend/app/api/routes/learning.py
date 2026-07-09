@@ -1,12 +1,13 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import get_current_user
 from app.db.session import get_db
 from app.models.entities import ArenaUser, ContentStatus, Lesson, LessonProgress, LessonStatus, Question, Section, Track, now_utc
-from app.schemas.api import LessonOut, LessonSubmitIn, QuestionOut, TrackOut
+from app.schemas.api import AnswerIn, LessonOut, LessonSubmitIn, QuestionOut, TrackOut
 from app.services.grading import grade_question
 
 router = APIRouter(tags=["learning"])
@@ -150,3 +151,26 @@ def submit_lesson(lesson_id: UUID, payload: LessonSubmitIn, db: Session = Depend
         progress.completed_at = now_utc()
     db.commit()
     return {"score": score, "max_score": max_score, "percent": percent, "completed": progress.status == LessonStatus.completed, "results": results}
+
+
+@router.get("/practice/questions", response_model=list[QuestionOut])
+def practice_questions(limit: int = 3, db: Session = Depends(get_db), current_user: ArenaUser = Depends(get_current_user)):
+    track = _ai_track(db)
+    lesson_ids = [lesson.id for section in track.sections for lesson in section.lessons if lesson.status == ContentStatus.published]
+    questions = (
+        db.query(Question)
+        .filter(Question.lesson_id.in_(lesson_ids), Question.status == ContentStatus.published)
+        .order_by(func.random())
+        .limit(max(1, min(limit, 10)))
+        .all()
+    )
+    return [QuestionOut(id=q.id, prompt=q.prompt, type=q.type.value, options=q.options, points=q.points) for q in questions]
+
+
+@router.post("/practice/check")
+def practice_check(payload: AnswerIn, db: Session = Depends(get_db), current_user: ArenaUser = Depends(get_current_user)):
+    question = db.query(Question).filter(Question.id == payload.question_id, Question.status == ContentStatus.published).one_or_none()
+    if not question:
+        raise HTTPException(status_code=404, detail="Question not found")
+    is_correct, points = grade_question(question, payload.answer)
+    return {"is_correct": is_correct, "points": points, "max_points": question.points, "explanation": question.explanation}

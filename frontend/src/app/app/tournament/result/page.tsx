@@ -103,6 +103,14 @@ function TournamentResultView() {
         <Link href="/app/tournament" className="inline-flex items-center h-11.5 px-5.5 rounded-full border border-[rgba(21,23,28,.14)] font-semibold text-sm hover:bg-[#f6f4ee] transition-colors">
           Открыть турниры
         </Link>
+        {result.review_available && (
+          <Link
+            href={`/app/leaderboard?id=${tournament.id}`}
+            className="inline-flex items-center h-11.5 px-5.5 rounded-full border border-[rgba(21,23,28,.14)] font-semibold text-sm hover:bg-[#f6f4ee] transition-colors"
+          >
+            Таблица лидеров
+          </Link>
+        )}
       </div>
     </div>
   );
