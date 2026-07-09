@@ -157,7 +157,20 @@ jobs:
           ARENA_HTTP_PORT="${ARENA_HTTP_PORT}" docker compose up -d --build
 
           echo "🌱 Seeding AI Track"
-          docker compose exec -T backend python -m app.scripts.seed
+          set +e
+          SEED_OUTPUT="$(docker compose exec -T backend python -m app.scripts.seed 2>&1)"
+          SEED_EXIT=$?
+          set -e
+          printf '%s\n' "${SEED_OUTPUT}"
+
+          if [ "${SEED_EXIT}" -ne 0 ]; then
+            if printf '%s\n' "${SEED_OUTPUT}" | grep -Eq 'Seeded AI Track|AI Track already seeded'; then
+              echo "⚠️ Seed command exited with ${SEED_EXIT}, but data seeding completed. Continuing to health check."
+            else
+              echo "❌ Seed command failed with exit code ${SEED_EXIT}"
+              exit "${SEED_EXIT}"
+            fi
+          fi
 
           echo "🧽 Cleaning temporary files"
           rm -rf "${RELEASE_DIR}" "/tmp/${RELEASE_ARCHIVE_NAME}"
