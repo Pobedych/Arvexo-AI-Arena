@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import AnyHttpUrl, field_validator
+from pydantic import AnyHttpUrl
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -23,17 +23,22 @@ class Settings(BaseSettings):
     session_ttl_days: int = 30
     cookie_secure: bool = False
     cookie_samesite: str = "lax"
-    admin_account_ids: list[str] = []
-    admin_emails: list[str] = []
+    admin_account_ids: str = ""
+    admin_emails: str = ""
 
-    @field_validator("admin_account_ids", "admin_emails", mode="before")
-    @classmethod
-    def split_csv(cls, value: str | list[str]) -> list[str]:
-        if isinstance(value, list):
-            return value
+    @staticmethod
+    def split_csv(value: str) -> list[str]:
         if not value:
             return []
         return [item.strip() for item in value.split(",") if item.strip()]
+
+    @property
+    def admin_account_id_list(self) -> list[str]:
+        return self.split_csv(self.admin_account_ids)
+
+    @property
+    def admin_email_list(self) -> list[str]:
+        return [email.lower() for email in self.split_csv(self.admin_emails)]
 
 
 @lru_cache

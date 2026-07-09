@@ -51,7 +51,11 @@ def upsert_arena_user(db: Session, account_user: dict) -> ArenaUser:
     user = db.query(ArenaUser).filter(ArenaUser.account_user_id == account_id).one_or_none()
     email = account_user.get("email")
     display_name = account_user.get("name") or email or "Пользователь Arvexo"
-    role = UserRole.admin if account_id in settings.admin_account_ids or (email and email in settings.admin_emails) else UserRole.user
+    role = (
+        UserRole.admin
+        if account_id in settings.admin_account_id_list or (email and email.lower() in settings.admin_email_list)
+        else UserRole.user
+    )
 
     if user is None:
         user = ArenaUser(account_user_id=account_id, email=email, display_name=display_name, avatar_url=account_user.get("avatar_url"), role=role)
