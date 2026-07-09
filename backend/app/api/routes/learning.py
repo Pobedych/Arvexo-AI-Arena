@@ -45,6 +45,18 @@ def _is_unlocked(lessons: list[Lesson], progress: dict[str, LessonProgress], les
     return bool(prev and prev.status == LessonStatus.completed)
 
 
+def _accessible_lesson(db: Session, user: ArenaUser, lesson_id: UUID) -> tuple[Lesson, dict[str, LessonProgress]]:
+    track = _ai_track(db)
+    lessons = _ordered_lessons(track)
+    progress = _progress_map(db, user)
+    lesson = next((item for item in lessons if item.id == lesson_id), None)
+    if not lesson:
+        raise HTTPException(status_code=404, detail="Lesson not found")
+    if not _is_unlocked(lessons, progress, lesson):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Complete previous lesson first")
+    return lesson, progress
+
+
 @router.post("/tracks/ai/select", response_model=TrackOut)
 def select_ai_track(db: Session = Depends(get_db), current_user: ArenaUser = Depends(get_current_user)):
     track = _ai_track(db)
@@ -97,14 +109,7 @@ def get_ai_track(db: Session = Depends(get_db), current_user: ArenaUser = Depend
 
 @router.get("/lessons/{lesson_id}", response_model=LessonOut)
 def get_lesson(lesson_id: UUID, db: Session = Depends(get_db), current_user: ArenaUser = Depends(get_current_user)):
-    track = _ai_track(db)
-    lessons = _ordered_lessons(track)
-    progress = _progress_map(db, current_user)
-    lesson = next((item for item in lessons if item.id == lesson_id), None)
-    if not lesson:
-        raise HTTPException(status_code=404, detail="Lesson not found")
-    if not _is_unlocked(lessons, progress, lesson):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Complete previous lesson first")
+    lesson, progress = _accessible_lesson(db, current_user, lesson_id)
     return {
         "id": lesson.id,
         "title": lesson.title,
@@ -122,14 +127,13 @@ def get_lesson(lesson_id: UUID, db: Session = Depends(get_db), current_user: Are
 
 @router.post("/lessons/{lesson_id}/submit")
 def submit_lesson(lesson_id: UUID, payload: LessonSubmitIn, db: Session = Depends(get_db), current_user: ArenaUser = Depends(get_current_user)):
-    lesson = db.query(Lesson).options(selectinload(Lesson.questions)).filter(Lesson.id == lesson_id).one_or_none()
-    if not lesson:
-        raise HTTPException(status_code=404, detail="Lesson not found")
+    lesson, _ = _accessible_lesson(db, current_user, lesson_id)
+    questions = [question for question in lesson.questions if question.status == ContentStatus.published]
     answers = {str(item.question_id): item.answer for item in payload.answers}
     score = 0
     max_score = 0
     results = []
-    for question in lesson.questions:
+    for question in questions:
         max_score += question.points
         is_correct, points = grade_question(question, answers.get(str(question.id)))
         score += points

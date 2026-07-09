@@ -55,6 +55,10 @@ def _attempt(db: Session, user: ArenaUser, tournament: Tournament) -> Tournament
     return db.query(TournamentAttempt).filter(TournamentAttempt.user_id == user.id, TournamentAttempt.tournament_id == tournament.id).one_or_none()
 
 
+def _invitation(db: Session, user: ArenaUser, tournament: Tournament) -> TournamentInvitation | None:
+    return db.query(TournamentInvitation).filter(TournamentInvitation.user_id == user.id, TournamentInvitation.tournament_id == tournament.id).one_or_none()
+
+
 def _submit_attempt(db: Session, attempt: TournamentAttempt, tournament: Tournament, auto: bool = False) -> TournamentAttempt:
     answers = {str(row.question_id): row for row in db.query(TournamentAnswer).filter(TournamentAnswer.attempt_id == attempt.id).all()}
     score = 0
@@ -104,13 +108,16 @@ def list_tournaments(db: Session = Depends(get_db), current_user: ArenaUser = De
 def register(tournament_id: UUID, db: Session = Depends(get_db), current_user: ArenaUser = Depends(get_current_user)):
     tournament = _tournament(db, tournament_id)
     _sync_status(tournament)
+    if tournament.status not in {TournamentStatus.published, TournamentStatus.active}:
+        raise HTTPException(status_code=400, detail="Tournament registration is closed")
+    invitation = _invitation(db, current_user, tournament)
+    if not invitation:
+        raise HTTPException(status_code=403, detail="Tournament invitation required")
     attempt = _attempt(db, current_user, tournament)
     if not attempt:
         attempt = TournamentAttempt(user_id=current_user.id, tournament_id=tournament.id, status=ParticipationStatus.registered, max_score=_max_score(tournament))
         db.add(attempt)
-    invitation = db.query(TournamentInvitation).filter(TournamentInvitation.user_id == current_user.id, TournamentInvitation.tournament_id == tournament.id).one_or_none()
-    if invitation:
-        invitation.status = "accepted"
+    invitation.status = "accepted"
     db.commit()
     return {"status": attempt.status.value}
 
@@ -123,8 +130,7 @@ def start(tournament_id: UUID, db: Session = Depends(get_db), current_user: Aren
         raise HTTPException(status_code=400, detail="Tournament is not active")
     attempt = _attempt(db, current_user, tournament)
     if not attempt:
-        attempt = TournamentAttempt(user_id=current_user.id, tournament_id=tournament.id, max_score=_max_score(tournament))
-        db.add(attempt)
+        raise HTTPException(status_code=403, detail="Tournament registration required")
     if attempt.status in {ParticipationStatus.submitted, ParticipationStatus.auto_submitted}:
         raise HTTPException(status_code=400, detail="Attempt is already submitted")
     if not attempt.started_at:

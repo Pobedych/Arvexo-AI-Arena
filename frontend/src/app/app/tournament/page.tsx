@@ -85,6 +85,9 @@ function TournamentView() {
     return <div className="text-sm text-[#6b6f76]">Пока нет доступных турниров.</div>;
   }
 
+  const canRegister = primary.status === "published" && primary.participation_status === "invited";
+  const canStart = primary.status === "active" && ["invited", "registered", "in_progress"].includes(primary.participation_status ?? "");
+
   return (
     <div>
       <div className="inline-flex items-center gap-1.5 bg-[#16a34a] text-white rounded-full py-1.5 px-3.5 text-[11.5px] font-bold mb-4">
@@ -107,18 +110,22 @@ function TournamentView() {
             {primary.status === "active" ? (
               <button
                 onClick={() => start(primary)}
-                disabled={busyId === primary.id || ["submitted", "auto_submitted"].includes(primary.participation_status ?? "")}
+                disabled={busyId === primary.id || !canStart || ["submitted", "auto_submitted"].includes(primary.participation_status ?? "")}
                 className="inline-flex items-center h-12 px-6 rounded-full bg-[#16a34a] text-white font-bold text-[14.5px] shadow-[0_14px_28px_-14px_rgba(22,163,74,.5)] hover:opacity-87 transition-opacity disabled:opacity-45"
               >
-                {primary.participation_status === "in_progress" ? "Продолжить попытку" : "Начать попытку"}
+                {!canStart ? "Только по приглашению" : primary.participation_status === "in_progress" ? "Продолжить попытку" : "Начать попытку"}
               </button>
             ) : (
               <button
                 onClick={() => register(primary)}
-                disabled={busyId === primary.id || primary.participation_status === "registered"}
+                disabled={busyId === primary.id || !canRegister || primary.participation_status === "registered"}
                 className="inline-flex items-center h-12 px-6 rounded-full bg-[#16a34a] text-white font-bold text-[14.5px] shadow-[0_14px_28px_-14px_rgba(22,163,74,.5)] hover:opacity-87 transition-opacity disabled:opacity-45"
               >
-                {primary.participation_status === "registered" ? "Ты зарегистрирован" : "Зарегистрироваться"}
+                {primary.participation_status === "registered"
+                  ? "Ты зарегистрирован"
+                  : canRegister
+                    ? "Зарегистрироваться"
+                    : "Только по приглашению"}
               </button>
             )}
             {["submitted", "auto_submitted"].includes(primary.participation_status ?? "") && (
