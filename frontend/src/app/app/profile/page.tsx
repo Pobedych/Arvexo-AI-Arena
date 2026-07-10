@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { api, type ApiUser, type Tournament, type Track } from "@/lib/api";
 
@@ -11,6 +12,7 @@ const settings = [
 ];
 
 export default function Profile() {
+  const router = useRouter();
   const [user, setUser] = useState<ApiUser | null>(null);
   const [track, setTrack] = useState<Track | null>(null);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
@@ -40,6 +42,11 @@ export default function Profile() {
   }, [user?.display_name]);
 
   const finishedTournaments = tournaments.filter((item) => ["submitted", "auto_submitted"].includes(item.participation_status ?? "")).length;
+
+  async function logout() {
+    await api<{ ok: boolean }>("/auth/logout", { method: "POST" }).catch(() => undefined);
+    router.replace("/login");
+  }
 
   if (loading) {
     return <div className="text-sm text-[#6b6f76]">Загружаем профиль...</div>;
@@ -104,9 +111,18 @@ export default function Profile() {
         </div>
       </div>
 
-      <Link href="/app/dashboard" className="inline-flex items-center h-11 px-5 rounded-full bg-[#15171c] text-white font-bold text-[13.5px] hover:opacity-85 transition-opacity">
-        Кабинет
-      </Link>
+      <div className="flex gap-2.5 flex-wrap">
+        <Link href="/app/dashboard" className="inline-flex items-center h-11 px-5 rounded-full bg-[#15171c] text-white font-bold text-[13.5px] hover:opacity-85 transition-opacity">
+          Кабинет
+        </Link>
+        <button
+          type="button"
+          onClick={logout}
+          className="inline-flex items-center h-11 px-5 rounded-full border border-[rgba(21,23,28,.14)] font-bold text-[13.5px] text-[#6b6f76] hover:bg-[#f6f4ee] transition-colors"
+        >
+          Выйти
+        </button>
+      </div>
     </div>
   );
 }

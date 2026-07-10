@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { api, type ApiUser } from "@/lib/api";
@@ -15,7 +15,6 @@ const dockItems = [
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter();
   const [user, setUser] = useState<ApiUser | null>(null);
 
   useEffect(() => {
@@ -30,12 +29,6 @@ export default function AppShell({ children }: { children: ReactNode }) {
     .map((part) => part[0])
     .join("")
     .toUpperCase();
-
-  async function logout() {
-    await api<{ ok: boolean }>("/auth/logout", { method: "POST" }).catch(() => undefined);
-    setUser(null);
-    router.replace("/login");
-  }
 
   return (
     <div className="min-h-screen bg-white">
@@ -64,13 +57,6 @@ export default function AppShell({ children }: { children: ReactNode }) {
               </span>
               <span className="hidden sm:inline text-[12.5px] font-semibold truncate max-w-[120px]">{displayName}</span>
             </Link>
-            <button
-              type="button"
-              onClick={logout}
-              className="h-8 rounded-full border border-[rgba(21,23,28,.12)] px-3 text-[12px] font-bold text-[#6b6f76] hover:bg-[#f6f4ee] transition-colors whitespace-nowrap"
-            >
-              Выйти
-            </button>
           </div>
         </div>
 
