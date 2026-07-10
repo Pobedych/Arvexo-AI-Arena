@@ -79,6 +79,8 @@ def get_ai_track(db: Session = Depends(get_db), current_user: ArenaUser = Depend
     for section in sorted(track.sections, key=lambda item: item.order):
         lesson_items = []
         for lesson in sorted(section.lessons, key=lambda item: item.order):
+            if lesson.status != ContentStatus.published:
+                continue
             row = progress.get(str(lesson.id))
             status_value = row.status.value if row else "not_started"
             lesson_items.append(

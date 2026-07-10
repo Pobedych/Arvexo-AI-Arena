@@ -8,20 +8,38 @@ import { Eyebrow, Card } from "@/components/ui";
 export default function TrackPage() {
   const [track, setTrack] = useState<Track | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     api<Track>("/tracks/ai")
-      .then(setTrack)
+      .then((data) => {
+        setTrack(data);
+        setError("");
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : "Не удалось загрузить AI Track"))
       .finally(() => setLoading(false));
   }, []);
 
   async function selectTrack() {
-    const selected = await api<Track>("/tracks/ai/select", { method: "POST" });
-    setTrack(selected);
+    try {
+      const selected = await api<Track>("/tracks/ai/select", { method: "POST" });
+      setTrack(selected);
+      setError("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось выбрать трек");
+    }
   }
 
-  if (loading || !track) {
+  if (loading) {
     return <div className="text-sm text-[#6b6f76]">Загружаем AI Track...</div>;
+  }
+
+  if (error || !track) {
+    return (
+      <div className="rounded-[16px] border border-[rgba(255,77,61,.25)] bg-[rgba(255,77,61,.06)] px-5 py-4 text-sm text-[#b42318]">
+        {error || "Не удалось загрузить AI Track"}
+      </div>
+    );
   }
 
   const lesson = currentLesson(track);
