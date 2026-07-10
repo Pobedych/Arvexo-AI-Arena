@@ -28,14 +28,14 @@ export default function TrackPage() {
 
   return (
     <div>
-      <div className="flex justify-between items-end gap-4 mb-4.5 flex-wrap">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 mb-4.5">
         <div>
           <Eyebrow>AI Track</Eyebrow>
           <h1 className="font-[family-name:var(--font-display)] text-[clamp(28px,3.6vw,44px)] font-semibold">
             Карта подготовки
           </h1>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 flex-wrap w-full sm:w-auto">
           <div className="text-right">
             <strong className="font-[family-name:var(--font-display)] text-[32px] text-[#16a34a] block">{track.progress_percent}%</strong>
             <span className="text-xs text-[#6b6f76]">пройдено трека</span>
@@ -43,7 +43,7 @@ export default function TrackPage() {
           {lesson && (
             <Link
               href={`/app/lesson/${lesson.id}`}
-              className="inline-flex items-center h-11.5 px-5.5 rounded-full bg-[#16a34a] text-white font-bold text-sm whitespace-nowrap hover:opacity-86 transition-opacity"
+              className="inline-flex items-center min-h-11.5 px-5.5 py-2.5 rounded-full bg-[#16a34a] text-white font-bold text-sm hover:opacity-86 transition-opacity max-w-full sm:max-w-[420px]"
             >
               Урок {lesson.order} — {lesson.title}
             </Link>

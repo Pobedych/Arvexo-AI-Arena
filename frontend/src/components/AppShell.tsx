@@ -39,8 +39,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
     .toUpperCase();
 
   return (
-    <div className="min-h-screen bg-white">
-      <div className="relative h-screen flex flex-col overflow-hidden">
+    <div className="min-h-dvh bg-white">
+      <div className="relative h-dvh flex flex-col overflow-hidden">
         {/* header */}
         <div className="flex items-center justify-between gap-2 px-4 sm:px-7 py-3 sm:py-4.5 border-b border-[rgba(21,23,28,.07)] shrink-0">
           <Link href="/" className="flex items-center gap-2 sm:gap-2.5 hover:opacity-80 transition-opacity shrink-0">
