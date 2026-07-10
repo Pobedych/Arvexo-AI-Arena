@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import MarkdownContent from "@/components/MarkdownContent";
 
 type Dashboard = {
   users: number;
@@ -125,6 +126,33 @@ function fromLocal(value: string) {
   return new Date(value).toISOString();
 }
 
+const statusLabels: Record<string, string> = {
+  draft: "Черновик",
+  published: "Опубликовано",
+  archived: "В архиве",
+  active: "Идёт",
+  finished: "Завершён",
+};
+
+const typeLabels: Record<string, string> = {
+  single_choice: "Один ответ",
+  multiple_choice: "Несколько ответов",
+  short_text: "Короткий текст",
+  number: "Число",
+};
+
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <label className="grid gap-1.5">
+      <span className="flex items-center justify-between gap-3 text-[12px] font-bold">
+        {label}
+        {hint && <span className="font-medium text-[#858990]">{hint}</span>}
+      </span>
+      {children}
+    </label>
+  );
+}
+
 export default function AdminClient() {
   const [active, setActive] = useState<Tab>("overview");
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
@@ -136,6 +164,20 @@ export default function AdminClient() {
   const [results, setResults] = useState<Record<string, ResultRow[]>>({});
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [lessonSearch, setLessonSearch] = useState("");
+  const [editingLesson, setEditingLesson] = useState<Lesson | null>(null);
+  const [theoryDraft, setTheoryDraft] = useState("");
+  const [theoryPreview, setTheoryPreview] = useState(false);
+  const [questionSearch, setQuestionSearch] = useState("");
+  const [questionStatus, setQuestionStatus] = useState("all");
+  const [questionType, setQuestionType] = useState("single_choice");
+  const [optionValues, setOptionValues] = useState(["", "", "", ""]);
+  const [correctOptions, setCorrectOptions] = useState<number[]>([0]);
+  const [correctText, setCorrectText] = useState("");
+  const [numberTolerance, setNumberTolerance] = useState("0");
+  const [tournamentQuestionSearch, setTournamentQuestionSearch] = useState("");
+  const [selectedQuestionIds, setSelectedQuestionIds] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
   const [defaultDates] = useState(() => {
     const start = new Date();
     const end = new Date(start.getTime() + 7 * 86400000);
@@ -144,6 +186,24 @@ export default function AdminClient() {
 
   const sections = useMemo(() => tracks.flatMap((track) => track.sections.map((section) => ({ ...section, trackTitle: track.title }))), [tracks]);
   const aiTrack = tracks.find((track) => track.slug === "ai") ?? tracks[0];
+  const filteredLessons = useMemo(() => {
+    const query = lessonSearch.trim().toLowerCase();
+    return lessons.filter((lesson) => !query || `${lesson.title} ${lesson.summary}`.toLowerCase().includes(query));
+  }, [lessonSearch, lessons]);
+  const filteredQuestions = useMemo(() => {
+    const query = questionSearch.trim().toLowerCase();
+    return questions.filter((question) => {
+      const matchesQuery = !query || `${question.title} ${question.prompt}`.toLowerCase().includes(query);
+      return matchesQuery && (questionStatus === "all" || question.status === questionStatus);
+    });
+  }, [questionSearch, questionStatus, questions]);
+  const tournamentQuestionOptions = useMemo(() => {
+    const query = tournamentQuestionSearch.trim().toLowerCase();
+    return questions.filter((question) => {
+      const matchesQuery = !query || `${question.title} ${question.prompt}`.toLowerCase().includes(query);
+      return question.status === "published" && matchesQuery;
+    });
+  }, [questions, tournamentQuestionSearch]);
 
   async function loadAll() {
     setError("");
@@ -179,47 +239,97 @@ export default function AdminClient() {
     };
   }, []);
 
+  function startEditLesson(lesson: Lesson) {
+    setEditingLesson(lesson);
+    setTheoryDraft(lesson.theory);
+    setTheoryPreview(false);
+    setNotice("");
+    setError("");
+  }
+
+  function cancelEditLesson() {
+    setEditingLesson(null);
+    setTheoryDraft("");
+    setTheoryPreview(false);
+  }
+
   async function submitLesson(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    const payload = {
+      section_id: form.get("section_id"),
+      title: form.get("title"),
+      summary: form.get("summary"),
+      theory: form.get("theory"),
+      order: Number(form.get("order") || 1),
+      pass_percent: Number(form.get("pass_percent") || 70),
+      status: form.get("status"),
+    };
     try {
-      await api("/admin/lessons", {
-        method: "POST",
-        body: JSON.stringify({
-          section_id: form.get("section_id"),
-          title: form.get("title"),
-          summary: form.get("summary"),
-          theory: form.get("theory"),
-          order: Number(form.get("order") || 1),
-          pass_percent: Number(form.get("pass_percent") || 70),
-          status: form.get("status"),
-        }),
-      });
-      event.currentTarget.reset();
-      setNotice("Урок создан");
+      if (editingLesson) {
+        await api(`/admin/lessons/${editingLesson.id}`, { method: "PATCH", body: JSON.stringify(payload) });
+        setNotice("Урок обновлён");
+        cancelEditLesson();
+      } else {
+        await api("/admin/lessons", { method: "POST", body: JSON.stringify(payload) });
+        setNotice("Урок создан");
+        event.currentTarget.reset();
+        setTheoryDraft("");
+        setTheoryPreview(false);
+      }
       await loadAll();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось создать урок");
+      setError(err instanceof Error ? err.message : "Не удалось сохранить урок");
     }
   }
 
   async function submitQuestion(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    const lastOptionIndex = optionValues.findLastIndex((item) => item.trim());
+    const options = optionValues.slice(0, lastOptionIndex + 1).map((item) => item.trim());
+    let correctAnswer: Record<string, unknown>;
+
+    if (questionType === "single_choice") {
+      if (options.length < 2 || options.some((item) => !item) || correctOptions[0] === undefined || correctOptions[0] >= options.length) {
+        setError("Добавьте минимум два варианта и отметьте правильный");
+        return;
+      }
+      correctAnswer = { option: correctOptions[0] };
+    } else if (questionType === "multiple_choice") {
+      const validAnswers = correctOptions.filter((index) => index < options.length);
+      if (options.length < 2 || options.some((item) => !item) || validAnswers.length === 0) {
+        setError("Добавьте варианты и отметьте хотя бы один правильный");
+        return;
+      }
+      correctAnswer = { options: validAnswers };
+    } else if (questionType === "short_text") {
+      if (!correctText.trim()) {
+        setError("Укажите правильный текстовый ответ");
+        return;
+      }
+      correctAnswer = { text: correctText.trim() };
+    } else {
+      if (correctText.trim() === "" || Number.isNaN(Number(correctText))) {
+        setError("Укажите правильный числовой ответ");
+        return;
+      }
+      correctAnswer = { number: Number(correctText) };
+    }
+
+    setBusy(true);
+    setError("");
     try {
-      const options = String(form.get("options") || "")
-        .split("\n")
-        .map((item) => item.trim())
-        .filter(Boolean);
       await api("/admin/questions", {
         method: "POST",
         body: JSON.stringify({
           lesson_id: form.get("lesson_id") || null,
           title: form.get("title"),
           prompt: form.get("prompt"),
-          type: form.get("type"),
+          type: questionType,
           options: options.length ? options : null,
-          correct_answer: JSON.parse(String(form.get("correct_answer") || "{}")),
+          correct_answer: correctAnswer,
+          tolerance: questionType === "number" ? Number(numberTolerance || 0) : null,
           points: Number(form.get("points") || 1),
           explanation: form.get("explanation"),
           difficulty: form.get("difficulty"),
@@ -228,21 +338,28 @@ export default function AdminClient() {
         }),
       });
       event.currentTarget.reset();
+      setQuestionType("single_choice");
+      setOptionValues(["", "", "", ""]);
+      setCorrectOptions([0]);
+      setCorrectText("");
+      setNumberTolerance("0");
       setNotice("Задание создано");
       await loadAll();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось создать задание");
+    } finally {
+      setBusy(false);
     }
   }
 
   async function submitTournament(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    if (selectedQuestionIds.length === 0) {
+      setError("Выберите хотя бы одно задание для турнира");
+      return;
+    }
     try {
-      const questionIds = String(form.get("question_ids") || "")
-        .split("\n")
-        .map((item) => item.trim())
-        .filter(Boolean);
       await api("/admin/tournaments", {
         method: "POST",
         body: JSON.stringify({
@@ -254,10 +371,12 @@ export default function AdminClient() {
           duration_minutes: Number(form.get("duration_minutes") || 60),
           status: form.get("status"),
           randomize_questions: form.get("randomize_questions") === "on",
-          question_ids: questionIds,
+          question_ids: selectedQuestionIds,
         }),
       });
       event.currentTarget.reset();
+      setSelectedQuestionIds([]);
+      setTournamentQuestionSearch("");
       setNotice("Турнир создан");
       await loadAll();
     } catch (err) {
@@ -346,10 +465,17 @@ export default function AdminClient() {
 
         {active === "lessons" && (
           <section className="grid gap-4 lg:grid-cols-[420px_1fr]">
-            <form onSubmit={submitLesson} className="rounded-[18px] border border-[rgba(21,23,28,.08)] bg-white p-5">
-              <h2 className="mb-4 text-[17px] font-extrabold">Новый урок</h2>
+            <form key={editingLesson?.id ?? "new"} onSubmit={submitLesson} className="rounded-[18px] border border-[rgba(21,23,28,.08)] bg-white p-5">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <h2 className="text-[17px] font-extrabold">{editingLesson ? `Редактировать: ${editingLesson.title}` : "Новый урок"}</h2>
+                {editingLesson && (
+                  <button type="button" onClick={cancelEditLesson} className="text-[12px] font-bold text-[#6b6f76]">
+                    Отменить
+                  </button>
+                )}
+              </div>
               <div className="grid gap-3">
-                <select name="section_id" required className={inputClass()}>
+                <select name="section_id" required defaultValue={editingLesson?.section_id ?? ""} className={inputClass()}>
                   <option value="">Раздел</option>
                   {sections.map((section) => (
                     <option key={section.id} value={section.id}>
@@ -357,94 +483,205 @@ export default function AdminClient() {
                     </option>
                   ))}
                 </select>
-                <input name="title" required placeholder="Название" className={inputClass()} />
-                <input name="summary" placeholder="Краткое описание" className={inputClass()} />
-                <textarea name="theory" required placeholder="Теория" rows={8} className={inputClass()} />
+                <input name="title" required placeholder="Название" defaultValue={editingLesson?.title ?? ""} className={inputClass()} />
+                <input name="summary" placeholder="Краткое описание" defaultValue={editingLesson?.summary ?? ""} className={inputClass()} />
+                <div>
+                  <div className="mb-1.5 flex items-center justify-between gap-3">
+                    <span className="text-[12px] font-bold">Теория (поддерживается markdown: **жирный**, таблицы, списки)</span>
+                    <button
+                      type="button"
+                      onClick={() => setTheoryPreview((current) => !current)}
+                      className="text-[11.5px] font-bold text-[#16a34a]"
+                    >
+                      {theoryPreview ? "Редактировать" : "Предпросмотр"}
+                    </button>
+                  </div>
+                  {theoryPreview ? (
+                    <div className="rounded-[10px] border border-[rgba(21,23,28,.14)] bg-[#fbfaf6] px-3.5 py-3">
+                      <MarkdownContent content={theoryDraft || "_Пусто_"} />
+                    </div>
+                  ) : (
+                    <textarea
+                      name="theory"
+                      required
+                      placeholder="Теория"
+                      rows={10}
+                      value={theoryDraft}
+                      onChange={(event) => setTheoryDraft(event.target.value)}
+                      className={inputClass("font-mono text-[12.5px]")}
+                    />
+                  )}
+                </div>
                 <div className="grid grid-cols-3 gap-2">
-                  <input name="order" type="number" defaultValue={lessons.length + 1} className={inputClass()} />
-                  <input name="pass_percent" type="number" defaultValue={70} className={inputClass()} />
-                  <select name="status" defaultValue="draft" className={inputClass()}>
+                  <input name="order" type="number" defaultValue={editingLesson?.order ?? lessons.length + 1} className={inputClass()} />
+                  <input name="pass_percent" type="number" defaultValue={editingLesson?.pass_percent ?? 70} className={inputClass()} />
+                  <select name="status" defaultValue={editingLesson?.status ?? "draft"} className={inputClass()}>
                     <option value="draft">draft</option>
                     <option value="published">published</option>
                     <option value="archived">archived</option>
                   </select>
                 </div>
-                <button className="h-11 rounded-full bg-[#15171c] text-[13px] font-bold text-white">Создать урок</button>
+                <button className="h-11 rounded-full bg-[#15171c] text-[13px] font-bold text-white">
+                  {editingLesson ? "Обновить урок" : "Создать урок"}
+                </button>
               </div>
             </form>
 
-            <div className="rounded-[18px] border border-[rgba(21,23,28,.08)] bg-white">
-              {lessons.map((lesson) => (
-                <div key={lesson.id} className="flex items-center gap-3 border-b border-[rgba(21,23,28,.07)] px-5 py-4 last:border-b-0">
+            <div className="overflow-hidden rounded-[8px] border border-[rgba(21,23,28,.08)] bg-white">
+              <div className="border-b border-[rgba(21,23,28,.08)] p-4">
+                <input value={lessonSearch} onChange={(event) => setLessonSearch(event.target.value)} placeholder="Поиск по урокам" className={inputClass()} />
+              </div>
+              {filteredLessons.map((lesson) => (
+                <div key={lesson.id} className="flex flex-wrap items-center gap-2 border-b border-[rgba(21,23,28,.07)] px-5 py-4 last:border-b-0">
                   <div className="min-w-0 flex-1">
                     <strong className="block truncate text-[13.5px]">{lesson.order}. {lesson.title}</strong>
-                    <span className="text-[11.5px] text-[#6b6f76]">{lesson.status} · заданий: {lesson.questions_count}</span>
+                    <span className="text-[11.5px] text-[#6b6f76]">{statusLabels[lesson.status] || lesson.status} · заданий: {lesson.questions_count}</span>
                   </div>
-                  <button onClick={() => patchLesson(lesson.id, "published")} className="rounded-full bg-[#16a34a] px-3 py-1.5 text-[11.5px] font-bold text-white">
-                    Publish
-                  </button>
-                  <button onClick={() => patchLesson(lesson.id, "archived")} className="rounded-full border border-[rgba(21,23,28,.14)] px-3 py-1.5 text-[11.5px] font-bold">
-                    Archive
-                  </button>
+                  <button onClick={() => startEditLesson(lesson)} className="rounded-[6px] border border-[rgba(21,23,28,.14)] px-3 py-1.5 text-[11.5px] font-bold">Редактировать</button>
+                  {lesson.status !== "published" && <button onClick={() => patchLesson(lesson.id, "published")} className="rounded-[6px] bg-[#16a34a] px-3 py-1.5 text-[11.5px] font-bold text-white">Опубликовать</button>}
+                  {lesson.status !== "archived" && <button onClick={() => patchLesson(lesson.id, "archived")} className="rounded-[6px] border border-[rgba(21,23,28,.14)] px-3 py-1.5 text-[11.5px] font-bold">В архив</button>}
                 </div>
               ))}
+              {filteredLessons.length === 0 && <p className="p-8 text-center text-[13px] text-[#6b6f76]">Уроки не найдены</p>}
             </div>
           </section>
         )}
 
         {active === "questions" && (
-          <section className="grid gap-4 lg:grid-cols-[460px_1fr]">
-            <form onSubmit={submitQuestion} className="rounded-[18px] border border-[rgba(21,23,28,.08)] bg-white p-5">
-              <h2 className="mb-4 text-[17px] font-extrabold">Новое задание</h2>
-              <div className="grid gap-3">
-                <select name="lesson_id" className={inputClass()}>
-                  <option value="">Без привязки к уроку</option>
-                  {lessons.map((lesson) => <option key={lesson.id} value={lesson.id}>{lesson.title}</option>)}
-                </select>
-                <input name="title" required placeholder="Название для админа" className={inputClass()} />
-                <textarea name="prompt" required placeholder="Условие" rows={4} className={inputClass()} />
-                <select name="type" defaultValue="single_choice" className={inputClass()}>
-                  <option value="single_choice">single_choice</option>
-                  <option value="multiple_choice">multiple_choice</option>
-                  <option value="short_text">short_text</option>
-                  <option value="number">number</option>
-                </select>
-                <textarea name="options" placeholder={"Варианты, каждый с новой строки"} rows={4} className={inputClass()} />
-                <input name="correct_answer" required defaultValue='{"option":0}' className={inputClass("font-mono")} />
-                <div className="grid grid-cols-4 gap-2">
-                  <input name="points" type="number" defaultValue={5} className={inputClass()} />
-                  <input name="order" type="number" defaultValue={1} className={inputClass()} />
-                  <select name="difficulty" defaultValue="easy" className={inputClass()}>
-                    <option value="easy">easy</option>
-                    <option value="medium">medium</option>
-                    <option value="hard">hard</option>
-                  </select>
-                  <select name="status" defaultValue="draft" className={inputClass()}>
-                    <option value="draft">draft</option>
-                    <option value="published">published</option>
-                    <option value="archived">archived</option>
-                  </select>
+          <section className="grid items-start gap-4 lg:grid-cols-[500px_1fr]">
+            <form onSubmit={submitQuestion} className="rounded-[8px] border border-[rgba(21,23,28,.1)] bg-white p-5 lg:sticky lg:top-5">
+              <div className="mb-5 flex items-end justify-between gap-3">
+                <div>
+                  <h2 className="text-[18px] font-extrabold">Новое задание</h2>
+                  <p className="mt-1 text-[12px] text-[#6b6f76]">Правильный ответ задаётся без JSON</p>
                 </div>
-                <textarea name="explanation" required placeholder="Объяснение" rows={3} className={inputClass()} />
-                <button className="h-11 rounded-full bg-[#15171c] text-[13px] font-bold text-white">Создать задание</button>
+                <span className="text-[12px] font-bold text-[#6b6f76]">{questions.length} в банке</span>
+              </div>
+              <div className="grid gap-4">
+                <Field label="Урок">
+                  <select name="lesson_id" className={inputClass()}>
+                    <option value="">Без привязки к уроку</option>
+                    {lessons.map((lesson) => <option key={lesson.id} value={lesson.id}>{lesson.title}</option>)}
+                  </select>
+                </Field>
+                <Field label="Служебное название" hint="видно только администратору">
+                  <input name="title" required placeholder="Например: Основы промптинга, вопрос 1" className={inputClass()} />
+                </Field>
+                <Field label="Условие задания">
+                  <textarea name="prompt" required placeholder="Введите вопрос или условие" rows={4} className={inputClass("resize-y")} />
+                </Field>
+                <Field label="Тип ответа">
+                  <select
+                    value={questionType}
+                    onChange={(event) => {
+                      setQuestionType(event.target.value);
+                      setCorrectOptions([0]);
+                      setCorrectText("");
+                    }}
+                    className={inputClass()}
+                  >
+                    {Object.entries(typeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  </select>
+                </Field>
+
+                {(questionType === "single_choice" || questionType === "multiple_choice") && (
+                  <fieldset className="grid gap-2">
+                    <legend className="mb-1 text-[12px] font-bold">Варианты ответа <span className="font-medium text-[#858990]">· отметьте правильные</span></legend>
+                    {optionValues.map((option, index) => {
+                      const checked = correctOptions.includes(index);
+                      return (
+                        <div key={index} className="grid grid-cols-[32px_1fr_32px] items-center gap-2">
+                          <input
+                            type={questionType === "single_choice" ? "radio" : "checkbox"}
+                            name="correct_option"
+                            checked={checked}
+                            onChange={() => setCorrectOptions((current) => questionType === "single_choice" ? [index] : checked ? current.filter((item) => item !== index) : [...current, index])}
+                            className="h-4 w-4 justify-self-center accent-[#16a34a]"
+                          />
+                          <input
+                            value={option}
+                            onChange={(event) => setOptionValues((current) => current.map((item, itemIndex) => itemIndex === index ? event.target.value : item))}
+                            placeholder={`Вариант ${index + 1}`}
+                            className={inputClass()}
+                          />
+                          <button
+                            type="button"
+                            title="Удалить вариант"
+                            disabled={optionValues.length <= 2}
+                            onClick={() => {
+                              setOptionValues((current) => current.filter((_, itemIndex) => itemIndex !== index));
+                              setCorrectOptions((current) => current.filter((item) => item !== index).map((item) => item > index ? item - 1 : item));
+                            }}
+                            className="h-8 w-8 text-[18px] text-[#858990] disabled:opacity-25"
+                          >×</button>
+                        </div>
+                      );
+                    })}
+                    <button type="button" onClick={() => setOptionValues((current) => [...current, ""])} className="mt-1 w-fit text-[12px] font-bold text-[#15803d]">+ Добавить вариант</button>
+                  </fieldset>
+                )}
+
+                {questionType === "short_text" && (
+                  <Field label="Правильный ответ" hint="регистр не учитывается">
+                    <input value={correctText} onChange={(event) => setCorrectText(event.target.value)} placeholder="Введите эталонный ответ" className={inputClass()} />
+                  </Field>
+                )}
+
+                {questionType === "number" && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Правильное число">
+                      <input type="number" step="any" value={correctText} onChange={(event) => setCorrectText(event.target.value)} className={inputClass()} />
+                    </Field>
+                    <Field label="Допустимая погрешность">
+                      <input type="number" min="0" step="any" value={numberTolerance} onChange={(event) => setNumberTolerance(event.target.value)} className={inputClass()} />
+                    </Field>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <Field label="Баллы"><input name="points" min="1" type="number" defaultValue={5} className={inputClass()} /></Field>
+                  <Field label="Порядок"><input name="order" min="1" type="number" defaultValue={1} className={inputClass()} /></Field>
+                  <Field label="Сложность">
+                    <select name="difficulty" defaultValue="easy" className={inputClass()}>
+                      <option value="easy">Легко</option><option value="medium">Средне</option><option value="hard">Сложно</option>
+                    </select>
+                  </Field>
+                  <Field label="Статус">
+                    <select name="status" defaultValue="draft" className={inputClass()}>
+                      <option value="draft">Черновик</option><option value="published">Опубликовано</option>
+                    </select>
+                  </Field>
+                </div>
+                <Field label="Объяснение ответа">
+                  <textarea name="explanation" required placeholder="Что показать пользователю после проверки" rows={3} className={inputClass("resize-y")} />
+                </Field>
+                <button disabled={busy} className="h-11 rounded-[8px] bg-[#15171c] text-[13px] font-bold text-white disabled:opacity-50">{busy ? "Сохраняем..." : "Создать задание"}</button>
               </div>
             </form>
 
-            <div className="rounded-[18px] border border-[rgba(21,23,28,.08)] bg-white">
-              {questions.map((question) => (
+            <div className="overflow-hidden rounded-[8px] border border-[rgba(21,23,28,.1)] bg-white">
+              <div className="grid gap-2 border-b border-[rgba(21,23,28,.08)] p-4 sm:grid-cols-[1fr_150px]">
+                <input value={questionSearch} onChange={(event) => setQuestionSearch(event.target.value)} placeholder="Поиск по заданиям" className={inputClass()} />
+                <select value={questionStatus} onChange={(event) => setQuestionStatus(event.target.value)} className={inputClass()}>
+                  <option value="all">Все статусы</option><option value="draft">Черновики</option><option value="published">Опубликованные</option><option value="archived">Архив</option>
+                </select>
+              </div>
+              {filteredQuestions.map((question) => (
                 <div key={question.id} className="border-b border-[rgba(21,23,28,.07)] px-5 py-4 last:border-b-0">
-                  <div className="mb-2 flex items-center gap-3">
-                    <strong className="min-w-0 flex-1 truncate text-[13.5px]">{question.title}</strong>
-                    <span className="rounded-full bg-[#f6f4ee] px-2.5 py-1 text-[10.5px] font-bold text-[#6b6f76]">{question.type}</span>
+                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                    <strong className="min-w-[180px] flex-1 text-[13.5px]">{question.title}</strong>
+                    <span className="rounded-[5px] bg-[#f1f2f3] px-2 py-1 text-[10.5px] font-bold text-[#6b6f76]">{typeLabels[question.type] || question.type}</span>
                     <span className="text-[11px] text-[#6b6f76]">{question.points} б.</span>
                   </div>
-                  <p className="mb-3 line-clamp-2 text-[12.5px] text-[#6b6f76]">{question.prompt}</p>
-                  <div className="flex gap-2">
-                    <button onClick={() => patchQuestion(question.id, "published")} className="rounded-full bg-[#16a34a] px-3 py-1.5 text-[11.5px] font-bold text-white">Publish</button>
-                    <button onClick={() => patchQuestion(question.id, "archived")} className="rounded-full border border-[rgba(21,23,28,.14)] px-3 py-1.5 text-[11.5px] font-bold">Archive</button>
+                  <p className="mb-3 line-clamp-2 text-[12.5px] leading-relaxed text-[#6b6f76]">{question.prompt}</p>
+                  <div className="flex items-center gap-2">
+                    <span className={`mr-auto text-[11px] font-bold ${question.status === "published" ? "text-[#15803d]" : "text-[#858990]"}`}>{statusLabels[question.status] || question.status}</span>
+                    {question.status !== "published" && <button onClick={() => patchQuestion(question.id, "published")} className="rounded-[6px] bg-[#16a34a] px-3 py-1.5 text-[11.5px] font-bold text-white">Опубликовать</button>}
+                    {question.status !== "archived" && <button onClick={() => patchQuestion(question.id, "archived")} className="rounded-[6px] border border-[rgba(21,23,28,.14)] px-3 py-1.5 text-[11.5px] font-bold">В архив</button>}
                   </div>
                 </div>
               ))}
+              {filteredQuestions.length === 0 && <p className="p-8 text-center text-[13px] text-[#6b6f76]">Задания не найдены</p>}
             </div>
           </section>
         )}
@@ -473,14 +710,39 @@ export default function AdminClient() {
                 <label className="flex items-center gap-2 text-[12.5px] font-semibold">
                   <input name="randomize_questions" type="checkbox" defaultChecked /> Случайный порядок заданий
                 </label>
-                <textarea
-                  name="question_ids"
-                  placeholder="ID заданий, каждый с новой строки"
-                  rows={6}
-                  defaultValue={questions.filter((q) => q.status === "published").slice(0, 20).map((q) => q.id).join("\n")}
-                  className={inputClass("font-mono")}
-                />
-                <button className="h-11 rounded-full bg-[#15171c] text-[13px] font-bold text-white">Создать турнир</button>
+                <fieldset className="overflow-hidden rounded-[8px] border border-[rgba(21,23,28,.14)]">
+                  <div className="flex items-center justify-between gap-3 border-b border-[rgba(21,23,28,.08)] bg-[#fafafa] px-3 py-2.5">
+                    <span className="text-[12px] font-bold">Задания турнира</span>
+                    <span className="text-[11px] font-bold text-[#15803d]">Выбрано: {selectedQuestionIds.length}</span>
+                  </div>
+                  <div className="border-b border-[rgba(21,23,28,.08)] p-2">
+                    <input value={tournamentQuestionSearch} onChange={(event) => setTournamentQuestionSearch(event.target.value)} placeholder="Найти опубликованное задание" className={inputClass()} />
+                  </div>
+                  <div className="max-h-[240px] overflow-y-auto">
+                    {tournamentQuestionOptions.map((question) => (
+                      <label key={question.id} className="flex cursor-pointer items-start gap-3 border-b border-[rgba(21,23,28,.06)] px-3 py-2.5 last:border-b-0 hover:bg-[#fafafa]">
+                        <input
+                          type="checkbox"
+                          checked={selectedQuestionIds.includes(question.id)}
+                          onChange={() => setSelectedQuestionIds((current) => current.includes(question.id) ? current.filter((id) => id !== question.id) : [...current, question.id])}
+                          className="mt-0.5 h-4 w-4 shrink-0 accent-[#16a34a]"
+                        />
+                        <span className="min-w-0">
+                          <strong className="block truncate text-[12px]">{question.title}</strong>
+                          <span className="text-[10.5px] text-[#6b6f76]">{typeLabels[question.type]} · {question.points} б.</span>
+                        </span>
+                      </label>
+                    ))}
+                    {tournamentQuestionOptions.length === 0 && <p className="p-5 text-center text-[12px] text-[#6b6f76]">Нет подходящих опубликованных заданий</p>}
+                  </div>
+                  {tournamentQuestionOptions.length > 0 && (
+                    <div className="flex gap-3 border-t border-[rgba(21,23,28,.08)] px-3 py-2 text-[11px] font-bold">
+                      <button type="button" onClick={() => setSelectedQuestionIds((current) => Array.from(new Set([...current, ...tournamentQuestionOptions.map((question) => question.id)])))} className="text-[#15803d]">Выбрать найденные</button>
+                      <button type="button" onClick={() => setSelectedQuestionIds([])} className="text-[#6b6f76]">Очистить</button>
+                    </div>
+                  )}
+                </fieldset>
+                <button className="h-11 rounded-[8px] bg-[#15171c] text-[13px] font-bold text-white">Создать турнир</button>
               </div>
             </form>
 

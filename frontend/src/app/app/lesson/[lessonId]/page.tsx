@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { api, toApiAnswer, type AnswerValue, type Lesson, type Question } from "@/lib/api";
+import MarkdownContent from "@/components/MarkdownContent";
 
 type SubmitResult = {
   score: number;
@@ -78,7 +79,7 @@ export default function LessonPage() {
       </h1>
 
       <div className="rounded-[24px] bg-white border border-[rgba(21,23,28,.07)] py-7.5 px-8 mb-3.5 shadow-[0_10px_30px_-24px_rgba(21,23,28,.3)]">
-        <p className="text-[15px] leading-relaxed text-[#15171c] whitespace-pre-line">{lesson.theory}</p>
+        <MarkdownContent content={lesson.theory} />
       </div>
 
       <div className="rounded-[24px] bg-white border border-[rgba(22,163,74,.18)] p-6.5 shadow-[0_10px_30px_-24px_rgba(22,163,74,.18)]">
