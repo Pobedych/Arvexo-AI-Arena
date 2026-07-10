@@ -1,8 +1,8 @@
 import enum
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, Enum, Float, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Date, DateTime, Enum, Float, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -61,6 +61,8 @@ class ParticipationStatus(str, enum.Enum):
 class ArenaUser(TimestampMixin, Base):
     __tablename__ = "arena_users"
 
+    XP_PER_LEVEL = 30
+
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     account_user_id: Mapped[str] = mapped_column(String(80), unique=True, index=True, nullable=False)
     email: Mapped[str | None] = mapped_column(String(255), index=True)
@@ -70,7 +72,16 @@ class ArenaUser(TimestampMixin, Base):
     selected_track_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tracks.id"))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
+    xp: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    current_streak: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    longest_streak: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    last_active_date: Mapped[date | None] = mapped_column(Date)
+
     sessions: Mapped[list["ArenaSession"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+
+    @property
+    def level(self) -> int:
+        return self.xp // self.XP_PER_LEVEL + 1
 
 
 class ArenaSession(TimestampMixin, Base):

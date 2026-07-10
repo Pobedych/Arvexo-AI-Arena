@@ -8,6 +8,7 @@ from app.api.deps import get_current_user
 from app.db.session import get_db
 from app.models.entities import ArenaUser, ContentStatus, Lesson, LessonProgress, LessonStatus, Question, Section, Track, now_utc
 from app.schemas.api import AnswerIn, LessonOut, LessonSubmitIn, QuestionOut, TrackOut
+from app.services.gamification import record_activity, sync_xp
 from app.services.grading import grade_question
 
 router = APIRouter(tags=["learning"])
@@ -153,6 +154,8 @@ def submit_lesson(lesson_id: UUID, payload: LessonSubmitIn, db: Session = Depend
     progress.status = LessonStatus.completed if percent >= lesson.pass_percent else LessonStatus.in_progress
     if progress.status == LessonStatus.completed and not progress.completed_at:
         progress.completed_at = now_utc()
+    record_activity(current_user)
+    sync_xp(db, current_user)
     db.commit()
     return {"score": score, "max_score": max_score, "percent": percent, "completed": progress.status == LessonStatus.completed, "results": results}
 
@@ -177,4 +180,6 @@ def practice_check(payload: AnswerIn, db: Session = Depends(get_db), current_use
     if not question:
         raise HTTPException(status_code=404, detail="Question not found")
     is_correct, points = grade_question(question, payload.answer)
+    record_activity(current_user)
+    db.commit()
     return {"is_correct": is_correct, "points": points, "max_points": question.points, "explanation": question.explanation}

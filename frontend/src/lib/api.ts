@@ -6,6 +6,11 @@ export type ApiUser = {
   avatar_url: string | null;
   role: string;
   selected_track_id: string | null;
+  xp: number;
+  level: number;
+  current_streak: number;
+  longest_streak: number;
+  arena_score: number | null;
 };
 
 export type TrackLesson = {

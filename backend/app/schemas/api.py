@@ -19,6 +19,11 @@ class UserOut(BaseModel):
     avatar_url: str | None
     role: str
     selected_track_id: UUID | None
+    xp: int
+    level: int
+    current_streak: int
+    longest_streak: int
+    arena_score: float | None = None
 
 
 class AnswerIn(BaseModel):

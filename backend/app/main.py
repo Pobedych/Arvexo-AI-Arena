@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 from app.api.routes import admin, auth, health, learning, tournaments
 from app.core.config import settings, validate_production_settings
 from app.db.base import Base
+from app.db.migrations import run_light_migrations
 from app.db.session import engine
 from app.models import entities  # noqa: F401
 
@@ -38,6 +39,7 @@ async def csrf_origin_guard(request: Request, call_next):
 def on_startup() -> None:
     validate_production_settings(settings)
     Base.metadata.create_all(bind=engine)
+    run_light_migrations(engine)
 
 
 app.include_router(health.router)

@@ -78,13 +78,13 @@ export default function Profile() {
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
-        <Stat value={user.role === "admin" ? "Admin" : "User"} label="роль" />
-        <Stat value={`${track.completed_lessons}/${track.total_lessons}`} label="AI Track" />
-        <Stat value={`${finishedTournaments}`} label="турниров завершено" />
+        <Stat value={`Уровень ${user.level}`} label={`${user.xp} XP`} />
         <div className="rounded-2xl bg-[#15171c] text-white p-4">
-          <strong className="font-[family-name:var(--font-display)] text-2xl block text-[#ffb100]">{tournaments.length}</strong>
-          <span className="text-[11.5px] text-white/55">турниров доступно</span>
+          <strong className="font-[family-name:var(--font-display)] text-2xl block text-[#ff9d3d]">🔥 {user.current_streak}</strong>
+          <span className="text-[11.5px] text-white/55">дней подряд · рекорд {user.longest_streak}</span>
         </div>
+        <Stat value={user.arena_score !== null ? `${user.arena_score}%` : "—"} label="Arena Score" />
+        <Stat value={`${finishedTournaments}`} label="турниров завершено" />
       </div>
 
       <div className="grid md:grid-cols-[1.3fr_1fr] gap-3.5 mb-3.5">

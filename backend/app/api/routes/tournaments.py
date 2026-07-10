@@ -18,6 +18,7 @@ from app.models.entities import (
     now_utc,
 )
 from app.schemas.api import AttemptAnswerIn, TournamentOut
+from app.services.gamification import record_activity
 from app.services.grading import grade_question
 
 router = APIRouter(prefix="/tournaments", tags=["tournaments"])
@@ -138,6 +139,7 @@ def start(tournament_id: UUID, db: Session = Depends(get_db), current_user: Aren
         attempt.started_at = now
         attempt.due_at = min(now + timedelta(minutes=tournament.duration_minutes), _aware(tournament.ends_at))
         attempt.status = ParticipationStatus.in_progress
+    record_activity(current_user)
     db.commit()
     return {"attempt_id": attempt.id, "status": attempt.status.value, "started_at": attempt.started_at, "due_at": attempt.due_at}
 

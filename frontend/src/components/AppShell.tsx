@@ -6,6 +6,14 @@ import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { api, type ApiUser } from "@/lib/api";
 
+function streakLabel(days: number) {
+  const mod10 = days % 10;
+  const mod100 = days % 100;
+  if (mod10 === 1 && mod100 !== 11) return "день";
+  if ([2, 3, 4].includes(mod10) && ![12, 13, 14].includes(mod100)) return "дня";
+  return "дней";
+}
+
 const dockItems = [
   { href: "/app/dashboard", label: "Обзор" },
   { href: "/app/track", label: "AI Track" },
@@ -42,12 +50,16 @@ export default function AppShell({ children }: { children: ReactNode }) {
             <strong className="hidden sm:inline text-[14.5px] tracking-tight whitespace-nowrap">Arvexo Arena</strong>
           </Link>
           <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
-            <div className="hidden md:flex items-center gap-1.5 bg-[#15171c] text-white rounded-full py-1.5 px-3.5 text-xs font-bold whitespace-nowrap">
-              <span className="text-[#ff9d3d]">🔥</span> 6 дней
-            </div>
-            <div className="hidden md:flex items-center gap-1.5 bg-[#f6f4ee] rounded-full py-1.5 px-3.5 text-xs font-bold whitespace-nowrap">
-              <span className="text-[#ffb100]">★</span> Уровень 4
-            </div>
+            {user && (
+              <div className="hidden md:flex items-center gap-1.5 bg-[#15171c] text-white rounded-full py-1.5 px-3.5 text-xs font-bold whitespace-nowrap">
+                <span className="text-[#ff9d3d]">🔥</span> {user.current_streak} {streakLabel(user.current_streak)}
+              </div>
+            )}
+            {user && (
+              <div className="hidden md:flex items-center gap-1.5 bg-[#f6f4ee] rounded-full py-1.5 px-3.5 text-xs font-bold whitespace-nowrap">
+                <span className="text-[#ffb100]">★</span> Уровень {user.level}
+              </div>
+            )}
             <Link
               href="/app/profile"
               className="flex items-center gap-2 md:border-l border-[rgba(21,23,28,.08)] pl-0 md:pl-3 hover:opacity-80 transition-opacity min-w-0"
