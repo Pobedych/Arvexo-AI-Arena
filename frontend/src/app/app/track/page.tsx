@@ -35,21 +35,21 @@ export default function TrackPage() {
             Карта подготовки
           </h1>
         </div>
-        <div className="flex items-center gap-4 flex-wrap w-full sm:w-auto">
-          <div className="text-right">
-            <strong className="font-[family-name:var(--font-display)] text-[32px] text-[#16a34a] block">{track.progress_percent}%</strong>
-            <span className="text-xs text-[#6b6f76]">пройдено трека</span>
-          </div>
-          {lesson && (
-            <Link
-              href={`/app/lesson/${lesson.id}`}
-              className="inline-flex items-center min-h-11.5 px-5.5 py-2.5 rounded-full bg-[#16a34a] text-white font-bold text-sm hover:opacity-86 transition-opacity max-w-full sm:max-w-[420px]"
-            >
-              Урок {lesson.order} — {lesson.title}
-            </Link>
-          )}
-        </div>
+        {lesson && (
+          <Link
+            href={`/app/lesson/${lesson.id}`}
+            className="inline-flex items-center min-h-11.5 px-5.5 py-2.5 rounded-full bg-[#16a34a] text-white font-bold text-sm hover:opacity-86 transition-opacity max-w-full sm:max-w-[420px]"
+          >
+            Урок {lesson.order} — {lesson.title}
+          </Link>
+        )}
       </div>
+
+      <Card className="rounded-[20px] p-5 mb-5.5">
+        <p className="text-[#16a34a] text-[10.5px] font-bold tracking-[.1em] uppercase mb-3">Прогресс</p>
+        <strong className="font-[family-name:var(--font-display)] text-[42px] block">{track.progress_percent}%</strong>
+        <p className="text-xs text-[#6b6f76] leading-relaxed">{track.description}</p>
+      </Card>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5.5">
         <Stat value={`${track.completed_lessons} / ${track.total_lessons}`} label="уроков пройдено" />
@@ -86,12 +86,6 @@ export default function TrackPage() {
         </div>
 
         <div className="grid gap-3.5">
-          <Card className="rounded-[20px] p-5">
-            <p className="text-[#16a34a] text-[10.5px] font-bold tracking-[.1em] uppercase mb-3">Прогресс</p>
-            <strong className="font-[family-name:var(--font-display)] text-[42px] block">{track.progress_percent}%</strong>
-            <p className="text-xs text-[#6b6f76] leading-relaxed">{track.description}</p>
-          </Card>
-
           <Card className="rounded-[20px] p-5">
             <p className="text-[#6b6f76] text-[10.5px] font-bold tracking-[.1em] uppercase mb-3">Навыки трека</p>
             <div className="flex flex-wrap gap-1.5">

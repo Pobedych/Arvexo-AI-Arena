@@ -109,6 +109,11 @@ class SectionCreateIn(BaseModel):
     order: int = 1
 
 
+class SectionUpdateIn(BaseModel):
+    title: str | None = None
+    order: int | None = None
+
+
 class LessonCreateIn(BaseModel):
     section_id: UUID
     title: str

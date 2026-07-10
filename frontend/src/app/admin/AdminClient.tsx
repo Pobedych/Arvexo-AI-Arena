@@ -14,12 +14,14 @@ type Dashboard = {
   attempts: number;
 };
 
+type SectionRow = { id: string; track_id: string; title: string; order: number; lessons_count: number };
+
 type Track = {
   id: string;
   title: string;
   slug: string;
   status: string;
-  sections: { id: string; title: string; order: number; lessons_count: number }[];
+  sections: SectionRow[];
 };
 
 type Lesson = {
@@ -83,6 +85,7 @@ type ResultRow = {
 
 const tabs = [
   { id: "overview", label: "Обзор" },
+  { id: "sections", label: "Разделы" },
   { id: "lessons", label: "Уроки" },
   { id: "questions", label: "Банк заданий" },
   { id: "tournaments", label: "Турниры" },
@@ -166,6 +169,7 @@ export default function AdminClient() {
   const [notice, setNotice] = useState("");
   const [lessonSearch, setLessonSearch] = useState("");
   const [editingLesson, setEditingLesson] = useState<Lesson | null>(null);
+  const [editingSection, setEditingSection] = useState<SectionRow | null>(null);
   const [theoryDraft, setTheoryDraft] = useState("");
   const [theoryPreview, setTheoryPreview] = useState(false);
   const [questionSearch, setQuestionSearch] = useState("");
@@ -239,6 +243,65 @@ export default function AdminClient() {
     };
   }, []);
 
+  function startEditSection(section: SectionRow) {
+    setEditingSection(section);
+    setNotice("");
+    setError("");
+  }
+
+  function cancelEditSection() {
+    setEditingSection(null);
+  }
+
+  async function submitSection(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formEl = event.currentTarget;
+    const form = new FormData(formEl);
+    try {
+      if (editingSection) {
+        await api(`/admin/sections/${editingSection.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            title: form.get("title"),
+            order: Number(form.get("order") || 1),
+          }),
+        });
+        setNotice("Раздел обновлён");
+        cancelEditSection();
+      } else {
+        await api("/admin/sections", {
+          method: "POST",
+          body: JSON.stringify({
+            track_id: form.get("track_id"),
+            title: form.get("title"),
+            order: Number(form.get("order") || 1),
+          }),
+        });
+        setNotice("Раздел создан");
+        formEl.reset();
+      }
+      await loadAll();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось сохранить раздел");
+    }
+  }
+
+  async function deleteSection(section: SectionRow) {
+    if (section.lessons_count > 0) {
+      setError("Нельзя удалить раздел, в котором есть уроки — сначала перенесите или удалите их");
+      return;
+    }
+    if (!window.confirm(`Удалить раздел «${section.title}»?`)) return;
+    try {
+      await api(`/admin/sections/${section.id}`, { method: "DELETE" });
+      setNotice("Раздел удалён");
+      if (editingSection?.id === section.id) cancelEditSection();
+      await loadAll();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось удалить раздел");
+    }
+  }
+
   function startEditLesson(lesson: Lesson) {
     setEditingLesson(lesson);
     setTheoryDraft(lesson.theory);
@@ -255,7 +318,8 @@ export default function AdminClient() {
 
   async function submitLesson(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const formEl = event.currentTarget;
+    const form = new FormData(formEl);
     const payload = {
       section_id: form.get("section_id"),
       title: form.get("title"),
@@ -273,7 +337,7 @@ export default function AdminClient() {
       } else {
         await api("/admin/lessons", { method: "POST", body: JSON.stringify(payload) });
         setNotice("Урок создан");
-        event.currentTarget.reset();
+        formEl.reset();
         setTheoryDraft("");
         setTheoryPreview(false);
       }
@@ -285,7 +349,8 @@ export default function AdminClient() {
 
   async function submitQuestion(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const formEl = event.currentTarget;
+    const form = new FormData(formEl);
     const lastOptionIndex = optionValues.findLastIndex((item) => item.trim());
     const options = optionValues.slice(0, lastOptionIndex + 1).map((item) => item.trim());
     let correctAnswer: Record<string, unknown>;
@@ -337,7 +402,7 @@ export default function AdminClient() {
           status: form.get("status"),
         }),
       });
-      event.currentTarget.reset();
+      formEl.reset();
       setQuestionType("single_choice");
       setOptionValues(["", "", "", ""]);
       setCorrectOptions([0]);
@@ -354,7 +419,8 @@ export default function AdminClient() {
 
   async function submitTournament(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const formEl = event.currentTarget;
+    const form = new FormData(formEl);
     if (selectedQuestionIds.length === 0) {
       setError("Выберите хотя бы одно задание для турнира");
       return;
@@ -374,7 +440,7 @@ export default function AdminClient() {
           question_ids: selectedQuestionIds,
         }),
       });
-      event.currentTarget.reset();
+      formEl.reset();
       setSelectedQuestionIds([]);
       setTournamentQuestionSearch("");
       setNotice("Турнир создан");
@@ -459,6 +525,64 @@ export default function AdminClient() {
                     <span className="text-[12px] text-[#6b6f76]">{label}</span>
                   </div>
                 ))}
+            </div>
+          </section>
+        )}
+
+        {active === "sections" && (
+          <section className="grid gap-4 lg:grid-cols-[380px_1fr]">
+            <form key={editingSection?.id ?? "new-section"} onSubmit={submitSection} className="rounded-[18px] border border-[rgba(21,23,28,.08)] bg-white p-5">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <h2 className="text-[17px] font-extrabold">{editingSection ? `Редактировать: ${editingSection.title}` : "Новый раздел"}</h2>
+                {editingSection && (
+                  <button type="button" onClick={cancelEditSection} className="text-[12px] font-bold text-[#6b6f76]">
+                    Отменить
+                  </button>
+                )}
+              </div>
+              <div className="grid gap-3">
+                {editingSection ? (
+                  <input disabled value={tracks.find((track) => track.id === editingSection.track_id)?.title ?? ""} className={inputClass("opacity-60")} />
+                ) : (
+                  <select name="track_id" required defaultValue={aiTrack?.id} className={inputClass()}>
+                    {tracks.map((track) => (
+                      <option key={track.id} value={track.id}>{track.title}</option>
+                    ))}
+                  </select>
+                )}
+                <input name="title" required placeholder="Название раздела" defaultValue={editingSection?.title ?? ""} className={inputClass()} />
+                <input name="order" type="number" placeholder="Порядок" defaultValue={editingSection?.order ?? sections.length + 1} className={inputClass()} />
+                <button className="h-11 rounded-full bg-[#15171c] text-[13px] font-bold text-white">
+                  {editingSection ? "Обновить раздел" : "Создать раздел"}
+                </button>
+              </div>
+            </form>
+
+            <div className="overflow-hidden rounded-[8px] border border-[rgba(21,23,28,.08)] bg-white">
+              {tracks.map((track) => (
+                <div key={track.id}>
+                  <div className="bg-[#fafafa] px-5 py-2.5 text-[11px] font-bold uppercase tracking-[.08em] text-[#6b6f76]">{track.title}</div>
+                  {track.sections.map((section) => (
+                    <div key={section.id} className="flex flex-wrap items-center gap-2 border-b border-[rgba(21,23,28,.07)] px-5 py-4 last:border-b-0">
+                      <div className="min-w-0 flex-1">
+                        <strong className="block truncate text-[13.5px]">{section.order}. {section.title}</strong>
+                        <span className="text-[11.5px] text-[#6b6f76]">уроков: {section.lessons_count}</span>
+                      </div>
+                      <button onClick={() => startEditSection(section)} className="rounded-[6px] border border-[rgba(21,23,28,.14)] px-3 py-1.5 text-[11.5px] font-bold">Редактировать</button>
+                      <button
+                        onClick={() => deleteSection(section)}
+                        disabled={section.lessons_count > 0}
+                        title={section.lessons_count > 0 ? "Сначала удалите или перенесите уроки раздела" : undefined}
+                        className="rounded-[6px] border border-[rgba(255,77,61,.3)] px-3 py-1.5 text-[11.5px] font-bold text-[#b42318] disabled:opacity-30"
+                      >
+                        Удалить
+                      </button>
+                    </div>
+                  ))}
+                  {track.sections.length === 0 && <p className="px-5 py-4 text-[12.5px] text-[#6b6f76]">Разделов пока нет</p>}
+                </div>
+              ))}
+              {tracks.length === 0 && <p className="p-8 text-center text-[13px] text-[#6b6f76]">Треки не найдены</p>}
             </div>
           </section>
         )}

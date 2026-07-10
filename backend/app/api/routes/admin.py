@@ -30,6 +30,7 @@ from app.schemas.api import (
     QuestionCreateIn,
     QuestionUpdateIn,
     SectionCreateIn,
+    SectionUpdateIn,
     TournamentCreateIn,
     TournamentQuestionSetIn,
     TournamentUpdateIn,
@@ -158,18 +159,20 @@ def list_tracks(_: ArenaUser = Depends(get_current_admin), db: Session = Depends
             "title": track.title,
             "description": track.description,
             "status": track.status.value,
-            "sections": [
-                {
-                    "id": section.id,
-                    "title": section.title,
-                    "order": section.order,
-                    "lessons_count": len(section.lessons),
-                }
-                for section in track.sections
-            ],
+            "sections": [_section_dict(section) for section in track.sections],
         }
         for track in tracks
     ]
+
+
+def _section_dict(section: Section) -> dict:
+    return {
+        "id": section.id,
+        "track_id": section.track_id,
+        "title": section.title,
+        "order": section.order,
+        "lessons_count": len(section.lessons),
+    }
 
 
 @router.post("/sections")
@@ -180,7 +183,32 @@ def create_section(payload: SectionCreateIn, _: ArenaUser = Depends(get_current_
     db.add(section)
     db.commit()
     db.refresh(section)
-    return {"id": section.id, "track_id": section.track_id, "title": section.title, "order": section.order}
+    return _section_dict(section)
+
+
+@router.patch("/sections/{section_id}")
+def update_section(section_id: UUID, payload: SectionUpdateIn, _: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
+    section = db.get(Section, section_id)
+    if not section:
+        raise HTTPException(status_code=404, detail="Section not found")
+    data = payload.model_dump(exclude_unset=True)
+    for key, value in data.items():
+        setattr(section, key, value)
+    db.commit()
+    db.refresh(section)
+    return _section_dict(section)
+
+
+@router.delete("/sections/{section_id}")
+def delete_section(section_id: UUID, _: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
+    section = db.get(Section, section_id)
+    if not section:
+        raise HTTPException(status_code=404, detail="Section not found")
+    if section.lessons:
+        raise HTTPException(status_code=400, detail="Cannot delete a section that still has lessons")
+    db.delete(section)
+    db.commit()
+    return {"ok": True}
 
 
 @router.get("/lessons")
