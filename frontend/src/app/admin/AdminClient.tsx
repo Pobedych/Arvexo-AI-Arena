@@ -287,11 +287,10 @@ export default function AdminClient() {
   }
 
   async function deleteSection(section: SectionRow) {
-    if (section.lessons_count > 0) {
-      setError("Нельзя удалить раздел, в котором есть уроки — сначала перенесите или удалите их");
-      return;
-    }
-    if (!window.confirm(`Удалить раздел «${section.title}»?`)) return;
+    const warning = section.lessons_count > 0
+      ? `Удалить раздел «${section.title}»? Вместе с ним будут удалены все его уроки (${section.lessons_count}) и их задания.`
+      : `Удалить раздел «${section.title}»?`;
+    if (!window.confirm(warning)) return;
     try {
       await api(`/admin/sections/${section.id}`, { method: "DELETE" });
       setNotice("Раздел удалён");
@@ -299,6 +298,32 @@ export default function AdminClient() {
       await loadAll();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось удалить раздел");
+    }
+  }
+
+  async function deleteLesson(lesson: Lesson) {
+    const warning = lesson.questions_count > 0
+      ? `Удалить урок «${lesson.title}»? Вместе с ним будут удалены его задания (${lesson.questions_count}) и прогресс учеников по нему.`
+      : `Удалить урок «${lesson.title}»? Прогресс учеников по нему тоже будет удалён.`;
+    if (!window.confirm(warning)) return;
+    try {
+      await api(`/admin/lessons/${lesson.id}`, { method: "DELETE" });
+      setNotice("Урок удалён");
+      if (editingLesson?.id === lesson.id) cancelEditLesson();
+      await loadAll();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось удалить урок");
+    }
+  }
+
+  async function deleteQuestion(question: Question) {
+    if (!window.confirm(`Удалить задание «${question.title}»? Оно будет убрано из всех турниров, где использовалось.`)) return;
+    try {
+      await api(`/admin/questions/${question.id}`, { method: "DELETE" });
+      setNotice("Задание удалено");
+      await loadAll();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось удалить задание");
     }
   }
 
@@ -571,9 +596,7 @@ export default function AdminClient() {
                       <button onClick={() => startEditSection(section)} className="rounded-[6px] border border-[rgba(21,23,28,.14)] px-3 py-1.5 text-[11.5px] font-bold">Редактировать</button>
                       <button
                         onClick={() => deleteSection(section)}
-                        disabled={section.lessons_count > 0}
-                        title={section.lessons_count > 0 ? "Сначала удалите или перенесите уроки раздела" : undefined}
-                        className="rounded-[6px] border border-[rgba(255,77,61,.3)] px-3 py-1.5 text-[11.5px] font-bold text-[#b42318] disabled:opacity-30"
+                        className="rounded-[6px] border border-[rgba(255,77,61,.3)] px-3 py-1.5 text-[11.5px] font-bold text-[#b42318]"
                       >
                         Удалить
                       </button>
@@ -664,6 +687,7 @@ export default function AdminClient() {
                   <button onClick={() => startEditLesson(lesson)} className="rounded-[6px] border border-[rgba(21,23,28,.14)] px-3 py-1.5 text-[11.5px] font-bold">Редактировать</button>
                   {lesson.status !== "published" && <button onClick={() => patchLesson(lesson.id, "published")} className="rounded-[6px] bg-[#16a34a] px-3 py-1.5 text-[11.5px] font-bold text-white">Опубликовать</button>}
                   {lesson.status !== "archived" && <button onClick={() => patchLesson(lesson.id, "archived")} className="rounded-[6px] border border-[rgba(21,23,28,.14)] px-3 py-1.5 text-[11.5px] font-bold">В архив</button>}
+                  <button onClick={() => deleteLesson(lesson)} className="rounded-[6px] border border-[rgba(255,77,61,.3)] px-3 py-1.5 text-[11.5px] font-bold text-[#b42318]">Удалить</button>
                 </div>
               ))}
               {filteredLessons.length === 0 && <p className="p-8 text-center text-[13px] text-[#6b6f76]">Уроки не найдены</p>}
@@ -802,6 +826,7 @@ export default function AdminClient() {
                     <span className={`mr-auto text-[11px] font-bold ${question.status === "published" ? "text-[#15803d]" : "text-[#858990]"}`}>{statusLabels[question.status] || question.status}</span>
                     {question.status !== "published" && <button onClick={() => patchQuestion(question.id, "published")} className="rounded-[6px] bg-[#16a34a] px-3 py-1.5 text-[11.5px] font-bold text-white">Опубликовать</button>}
                     {question.status !== "archived" && <button onClick={() => patchQuestion(question.id, "archived")} className="rounded-[6px] border border-[rgba(21,23,28,.14)] px-3 py-1.5 text-[11.5px] font-bold">В архив</button>}
+                    <button onClick={() => deleteQuestion(question)} className="rounded-[6px] border border-[rgba(255,77,61,.3)] px-3 py-1.5 text-[11.5px] font-bold text-[#b42318]">Удалить</button>
                   </div>
                 </div>
               ))}

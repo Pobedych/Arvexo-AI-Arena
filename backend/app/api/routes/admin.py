@@ -18,6 +18,7 @@ from app.models.entities import (
     QuestionType,
     Section,
     Tournament,
+    TournamentAnswer,
     TournamentAttempt,
     TournamentInvitation,
     TournamentQuestion,
@@ -199,13 +200,24 @@ def update_section(section_id: UUID, payload: SectionUpdateIn, _: ArenaUser = De
     return _section_dict(section)
 
 
+def _purge_question_dependencies(db: Session, question_id: UUID) -> None:
+    db.query(TournamentAnswer).filter(TournamentAnswer.question_id == question_id).delete()
+    db.query(TournamentQuestion).filter(TournamentQuestion.question_id == question_id).delete()
+
+
+def _purge_lesson_dependencies(db: Session, lesson: Lesson) -> None:
+    db.query(LessonProgress).filter(LessonProgress.lesson_id == lesson.id).delete()
+    for question in lesson.questions:
+        _purge_question_dependencies(db, question.id)
+
+
 @router.delete("/sections/{section_id}")
 def delete_section(section_id: UUID, _: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
     section = db.get(Section, section_id)
     if not section:
         raise HTTPException(status_code=404, detail="Section not found")
-    if section.lessons:
-        raise HTTPException(status_code=400, detail="Cannot delete a section that still has lessons")
+    for lesson in section.lessons:
+        _purge_lesson_dependencies(db, lesson)
     db.delete(section)
     db.commit()
     return {"ok": True}
@@ -251,6 +263,17 @@ def update_lesson(lesson_id: UUID, payload: LessonUpdateIn, _: ArenaUser = Depen
     db.commit()
     db.refresh(lesson)
     return _lesson_dict(lesson)
+
+
+@router.delete("/lessons/{lesson_id}")
+def delete_lesson(lesson_id: UUID, _: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
+    lesson = db.get(Lesson, lesson_id)
+    if not lesson:
+        raise HTTPException(status_code=404, detail="Lesson not found")
+    _purge_lesson_dependencies(db, lesson)
+    db.delete(lesson)
+    db.commit()
+    return {"ok": True}
 
 
 @router.get("/questions")
@@ -300,6 +323,17 @@ def update_question(question_id: UUID, payload: QuestionUpdateIn, _: ArenaUser =
     db.commit()
     db.refresh(question)
     return _question_dict(question)
+
+
+@router.delete("/questions/{question_id}")
+def delete_question(question_id: UUID, _: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
+    question = db.get(Question, question_id)
+    if not question:
+        raise HTTPException(status_code=404, detail="Question not found")
+    _purge_question_dependencies(db, question_id)
+    db.delete(question)
+    db.commit()
+    return {"ok": True}
 
 
 @router.get("/tournaments")
