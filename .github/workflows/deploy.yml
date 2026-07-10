@@ -68,6 +68,12 @@ jobs:
         working-directory: backend
         run: python -m compileall app
 
+      - name: "🗄️ Verify Alembic migrations apply cleanly"
+        working-directory: backend
+        env:
+          DATABASE_URL: "sqlite:////tmp/ci_migration_check.db"
+        run: alembic upgrade head
+
   deploy:
     name: "🚢 Deploy to VPS"
     runs-on: ubuntu-latest

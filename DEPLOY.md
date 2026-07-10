@@ -59,6 +59,19 @@ docker compose exec backend python -m app.scripts.seed
 curl http://127.0.0.1:9200/api/health
 ```
 
+Database schema is managed by Alembic and applied automatically on every
+container start (`backend/Dockerfile` runs `python -m app.scripts.migrate`
+before `uvicorn`). New migrations just need to be committed to
+`backend/alembic/versions/` — no manual SQL step required. To create a new
+migration after changing a model:
+
+```bash
+cd backend && source .venv/bin/activate
+DATABASE_URL=sqlite:///./arena_dev.db alembic revision --autogenerate -m "describe the change"
+```
+
+Always review the generated migration file before committing.
+
 ## 4. Public nginx reverse proxy
 
 Create `/etc/nginx/sites-available/arena.arvexo.ru`:
