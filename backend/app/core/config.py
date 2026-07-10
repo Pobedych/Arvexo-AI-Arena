@@ -41,6 +41,21 @@ class Settings(BaseSettings):
         return [email.lower() for email in self.split_csv(self.admin_emails)]
 
 
+def validate_production_settings(settings: "Settings") -> None:
+    if settings.app_env != "production":
+        return
+    if settings.arena_sso_client_secret == "dev_arena_secret":
+        raise ValueError("Default SSO secret is forbidden in production")
+    if not settings.cookie_secure:
+        raise ValueError("Secure cookies are required in production")
+    if str(settings.frontend_url).startswith("http://"):
+        raise ValueError("Production frontend_url must use HTTPS")
+    if str(settings.account_api_url).startswith("http://"):
+        raise ValueError("Production account_api_url must use HTTPS")
+    if settings.database_url.startswith("sqlite"):
+        raise ValueError("Production database_url must not be SQLite")
+
+
 @lru_cache
 def get_settings() -> Settings:
     return Settings()

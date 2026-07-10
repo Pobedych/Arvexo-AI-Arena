@@ -1,3 +1,5 @@
+import csv
+from io import StringIO
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -413,20 +415,33 @@ def tournament_results(tournament_id: UUID, _: ArenaUser = Depends(get_current_a
     return rows
 
 
+DANGEROUS_CSV_PREFIXES = ("=", "+", "-", "@", "\t", "\r", "\n")
+
+
+def csv_safe(value) -> str:
+    text = "" if value is None else str(value)
+    if text.startswith(DANGEROUS_CSV_PREFIXES):
+        return "'" + text
+    return text
+
+
 @router.get("/tournaments/{tournament_id}/results.csv")
 def tournament_results_csv(tournament_id: UUID, _: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
     rows = tournament_results(tournament_id, _, db)
-    lines = ["place,display_name,email,status,score,max_score,started_at,submitted_at"]
+    buffer = StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(["place", "display_name", "email", "status", "score", "max_score", "started_at", "submitted_at"])
     for row in rows:
-        values = [
-            row["place"],
-            row["display_name"],
-            row["email"] or "",
-            row["status"],
-            row["score"],
-            row["max_score"],
-            row["started_at"] or "",
-            row["submitted_at"] or "",
-        ]
-        lines.append(",".join(f'"{str(value).replace(chr(34), chr(34) + chr(34))}"' for value in values))
-    return Response("\n".join(lines), media_type="text/csv; charset=utf-8")
+        writer.writerow(
+            [
+                csv_safe(row["place"]),
+                csv_safe(row["display_name"]),
+                csv_safe(row["email"] or ""),
+                csv_safe(row["status"]),
+                csv_safe(row["score"]),
+                csv_safe(row["max_score"]),
+                csv_safe(row["started_at"] or ""),
+                csv_safe(row["submitted_at"] or ""),
+            ]
+        )
+    return Response(buffer.getvalue(), media_type="text/csv; charset=utf-8")

@@ -226,6 +226,13 @@ def result(tournament_id: UUID, db: Session = Depends(get_db), current_user: Are
     return {"status": attempt.status.value, "score": attempt.score, "max_score": attempt.max_score, "review_available": True, "review": review}
 
 
+def public_display_name(display_name: str) -> str:
+    parts = [part for part in display_name.strip().split() if part]
+    if len(parts) < 2:
+        return display_name
+    return f"{parts[0]} {parts[1][0]}."
+
+
 @router.get("/{tournament_id}/leaderboard")
 def leaderboard(tournament_id: UUID, db: Session = Depends(get_db), current_user: ArenaUser = Depends(get_current_user)):
     tournament = _tournament(db, tournament_id)
@@ -266,15 +273,17 @@ def leaderboard(tournament_id: UUID, db: Session = Depends(get_db), current_user
             prev_key = key
         duration = duration_seconds(attempt)
         user = users.get(attempt.user_id)
+        is_you = attempt.user_id == current_user.id
+        shown_name = user.display_name if (user and is_you) else public_display_name(user.display_name) if user else "Участник"
         rows.append(
             {
                 "rank": rank,
-                "display_name": user.display_name if user else "Участник",
+                "display_name": shown_name,
                 "score": attempt.score,
                 "max_score": attempt.max_score,
                 "duration_seconds": None if duration == float("inf") else int(duration),
                 "status": attempt.status.value,
-                "is_you": attempt.user_id == current_user.id,
+                "is_you": is_you,
             }
         )
 

@@ -2,7 +2,13 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+AnswerScalar = str | int | float | bool
+AnswerValue = AnswerScalar | list[AnswerScalar] | None
+MAX_ANSWER_TEXT_LENGTH = 2000
+MAX_ANSWER_LIST_LENGTH = 50
+MAX_ANSWER_FIELDS = 10
 
 
 class UserOut(BaseModel):
@@ -17,11 +23,23 @@ class UserOut(BaseModel):
 
 class AnswerIn(BaseModel):
     question_id: UUID
-    answer: dict[str, Any]
+    answer: dict[str, AnswerValue] = Field(default_factory=dict)
+
+    @field_validator("answer")
+    @classmethod
+    def validate_answer_shape(cls, value: dict[str, AnswerValue]) -> dict[str, AnswerValue]:
+        if len(value) > MAX_ANSWER_FIELDS:
+            raise ValueError(f"Answer has too many fields (max {MAX_ANSWER_FIELDS})")
+        for item in value.values():
+            if isinstance(item, str) and len(item) > MAX_ANSWER_TEXT_LENGTH:
+                raise ValueError(f"Answer text is too long (max {MAX_ANSWER_TEXT_LENGTH} chars)")
+            if isinstance(item, list) and len(item) > MAX_ANSWER_LIST_LENGTH:
+                raise ValueError(f"Answer list is too long (max {MAX_ANSWER_LIST_LENGTH} items)")
+        return value
 
 
 class LessonSubmitIn(BaseModel):
-    answers: list[AnswerIn]
+    answers: list[AnswerIn] = Field(max_length=100)
 
 
 class QuestionOut(BaseModel):
@@ -77,7 +95,7 @@ class TournamentOut(BaseModel):
 
 
 class AttemptAnswerIn(BaseModel):
-    answers: list[AnswerIn]
+    answers: list[AnswerIn] = Field(max_length=100)
 
 
 class SectionCreateIn(BaseModel):

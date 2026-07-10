@@ -9,12 +9,22 @@ from app.core.config import settings
 from app.models.entities import ArenaUser, UserRole
 
 STATE_COOKIE = "arena_sso_state"
+DEFAULT_RETURN_TO = "/app/dashboard"
 
 
-def build_start_response(response: Response, return_to: str = "/app/dashboard") -> str:
+def sanitize_return_to(value: str | None) -> str:
+    if not value:
+        return DEFAULT_RETURN_TO
+    if not value.startswith("/") or value.startswith("//") or "\\" in value or "\n" in value or "\r" in value:
+        return DEFAULT_RETURN_TO
+    return value
+
+
+def build_start_response(response: Response, return_to: str = DEFAULT_RETURN_TO) -> str:
     state = secrets.token_urlsafe(24)
+    safe_return_to = sanitize_return_to(return_to)
     response.set_cookie(STATE_COOKIE, state, max_age=10 * 60, httponly=True, secure=settings.cookie_secure, samesite="lax", path="/")
-    response.set_cookie("arena_return_to", return_to, max_age=10 * 60, httponly=True, secure=settings.cookie_secure, samesite="lax", path="/")
+    response.set_cookie("arena_return_to", safe_return_to, max_age=10 * 60, httponly=True, secure=settings.cookie_secure, samesite="lax", path="/")
     params = {
         "client_id": settings.arena_sso_client_id,
         "redirect_uri": str(settings.arena_sso_redirect_uri),
@@ -27,7 +37,7 @@ def validate_state(request: Request, state: str | None) -> str:
     expected = request.cookies.get(STATE_COOKIE)
     if not state or not expected or state != expected:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid SSO state")
-    return request.cookies.get("arena_return_to") or "/app/dashboard"
+    return sanitize_return_to(request.cookies.get("arena_return_to"))
 
 
 async def exchange_code(code: str) -> dict:
