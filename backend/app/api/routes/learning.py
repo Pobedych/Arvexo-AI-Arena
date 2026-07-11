@@ -83,6 +83,7 @@ def get_ai_track(db: Session = Depends(get_db), current_user: ArenaUser = Depend
                 continue
             row = progress.get(str(lesson.id))
             status_value = row.status.value if row else "not_started"
+            current_max_score = sum(q.points for q in lesson.questions if q.status == ContentStatus.published)
             lesson_items.append(
                 {
                     "id": lesson.id,
@@ -91,8 +92,8 @@ def get_ai_track(db: Session = Depends(get_db), current_user: ArenaUser = Depend
                     "order": lesson.order,
                     "status": status_value,
                     "unlocked": _is_unlocked(lessons, progress, lesson),
-                    "best_score": row.best_score if row else 0,
-                    "max_score": row.max_score if row else sum(q.points for q in lesson.questions),
+                    "best_score": min(row.best_score, current_max_score) if row else 0,
+                    "max_score": current_max_score,
                 }
             )
         sections.append({"id": section.id, "title": section.title, "order": section.order, "lessons": lesson_items})

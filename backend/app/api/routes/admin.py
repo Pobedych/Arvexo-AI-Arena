@@ -200,6 +200,13 @@ def update_section(section_id: UUID, payload: SectionUpdateIn, _: ArenaUser = De
     return _section_dict(section)
 
 
+def _reset_lesson_progress(db: Session, lesson_id: UUID | None) -> None:
+    """Wipe learners' progress for a lesson whose question set just changed underneath them."""
+    if not lesson_id:
+        return
+    db.query(LessonProgress).filter(LessonProgress.lesson_id == lesson_id).delete()
+
+
 def _purge_question_dependencies(db: Session, question_id: UUID) -> None:
     db.query(TournamentAnswer).filter(TournamentAnswer.question_id == question_id).delete()
     db.query(TournamentQuestion).filter(TournamentQuestion.question_id == question_id).delete()
@@ -301,9 +308,13 @@ def create_question(payload: QuestionCreateIn, _: ArenaUser = Depends(get_curren
         status=_content_status(payload.status),
     )
     db.add(question)
+    _reset_lesson_progress(db, question.lesson_id)
     db.commit()
     db.refresh(question)
     return _question_dict(question)
+
+
+CONTENT_AFFECTING_QUESTION_FIELDS = {"lesson_id", "type", "options", "correct_answer", "tolerance", "points", "status"}
 
 
 @router.patch("/questions/{question_id}")
@@ -318,6 +329,10 @@ def update_question(question_id: UUID, payload: QuestionUpdateIn, _: ArenaUser =
         data["type"] = _question_type(data["type"])
     if "status" in data:
         data["status"] = _content_status(data["status"])
+    old_lesson_id = question.lesson_id
+    if CONTENT_AFFECTING_QUESTION_FIELDS & data.keys():
+        _reset_lesson_progress(db, old_lesson_id)
+        _reset_lesson_progress(db, data.get("lesson_id"))
     for key, value in data.items():
         setattr(question, key, value)
     db.commit()
@@ -330,6 +345,7 @@ def delete_question(question_id: UUID, _: ArenaUser = Depends(get_current_admin)
     question = db.get(Question, question_id)
     if not question:
         raise HTTPException(status_code=404, detail="Question not found")
+    _reset_lesson_progress(db, question.lesson_id)
     _purge_question_dependencies(db, question_id)
     db.delete(question)
     db.commit()
