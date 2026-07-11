@@ -43,6 +43,11 @@ export type Track = {
   sections: TrackSection[];
 };
 
+export type ActivityDay = {
+  date: string;
+  count: number;
+};
+
 export type Question = {
   id: string;
   prompt: string;

@@ -171,6 +171,16 @@ class LessonProgress(TimestampMixin, Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class ActivityLog(TimestampMixin, Base):
+    __tablename__ = "activity_logs"
+    __table_args__ = (UniqueConstraint("user_id", "activity_date", name="uq_user_activity_date"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("arena_users.id"), nullable=False)
+    activity_date: Mapped[date] = mapped_column(Date, nullable=False)
+    action_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+
 class Tournament(TimestampMixin, Base):
     __tablename__ = "tournaments"
 

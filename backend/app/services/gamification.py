@@ -4,6 +4,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.entities import (
+    ActivityLog,
     ArenaUser,
     LessonProgress,
     LessonStatus,
@@ -15,9 +16,16 @@ from app.models.entities import (
 )
 
 
-def record_activity(user: ArenaUser) -> None:
-    """Update the daily streak for any qualifying learning activity (lesson, practice, tournament)."""
+def record_activity(db: Session, user: ArenaUser) -> None:
+    """Update the daily streak and activity log for any qualifying learning activity (lesson, practice, tournament)."""
     today = now_utc().date()
+
+    log = db.query(ActivityLog).filter(ActivityLog.user_id == user.id, ActivityLog.activity_date == today).one_or_none()
+    if not log:
+        log = ActivityLog(user_id=user.id, activity_date=today, action_count=0)
+        db.add(log)
+    log.action_count += 1
+
     if user.last_active_date == today:
         return
     if user.last_active_date == today - timedelta(days=1):
@@ -26,6 +34,22 @@ def record_activity(user: ArenaUser) -> None:
         user.current_streak = 1
     user.last_active_date = today
     user.longest_streak = max(user.longest_streak, user.current_streak)
+
+
+def weekly_activity(db: Session, user: ArenaUser) -> list[dict]:
+    """Return the last 7 days (oldest first) with an activity count for each day."""
+    today = now_utc().date()
+    start = today - timedelta(days=6)
+    rows = (
+        db.query(ActivityLog.activity_date, ActivityLog.action_count)
+        .filter(ActivityLog.user_id == user.id, ActivityLog.activity_date >= start, ActivityLog.activity_date <= today)
+        .all()
+    )
+    counts = {row.activity_date: row.action_count for row in rows}
+    return [
+        {"date": (start + timedelta(days=offset)).isoformat(), "count": counts.get(start + timedelta(days=offset), 0)}
+        for offset in range(7)
+    ]
 
 
 def sync_xp(db: Session, user: ArenaUser) -> None:

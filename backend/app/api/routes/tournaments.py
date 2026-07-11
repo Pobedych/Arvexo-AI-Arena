@@ -139,7 +139,7 @@ def start(tournament_id: UUID, db: Session = Depends(get_db), current_user: Aren
         attempt.started_at = now
         attempt.due_at = min(now + timedelta(minutes=tournament.duration_minutes), _aware(tournament.ends_at))
         attempt.status = ParticipationStatus.in_progress
-    record_activity(current_user)
+    record_activity(db, current_user)
     db.commit()
     return {"attempt_id": attempt.id, "status": attempt.status.value, "started_at": attempt.started_at, "due_at": attempt.due_at}
 

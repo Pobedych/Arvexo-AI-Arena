@@ -2,38 +2,41 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { api, currentLesson, formatDateTime, type ApiUser, type Tournament, type Track } from "@/lib/api";
+import { api, currentLesson, formatDateTime, type ActivityDay, type ApiUser, type Tournament, type Track } from "@/lib/api";
 import { Eyebrow, Card } from "@/components/ui";
 
-const days = [
-  { label: "Пн", h: 34, active: true },
-  { label: "Вт", h: 58, active: true },
-  { label: "Ср", h: 14, active: false },
-  { label: "Чт", h: 44, active: true },
-  { label: "Пт", h: 70, dark: true },
-  { label: "Сб", h: 14, active: false },
-  { label: "Вс", h: 24, active: false },
-];
+const dayLabels = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
 
 export default function Dashboard() {
   const [user, setUser] = useState<ApiUser | null>(null);
   const [track, setTrack] = useState<Track | null>(null);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [activity, setActivity] = useState<ActivityDay[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([api<ApiUser>("/auth/me"), api<Track>("/tracks/ai"), api<Tournament[]>("/tournaments")])
-      .then(([userData, trackData, tournamentData]) => {
+    Promise.all([api<ApiUser>("/auth/me"), api<Track>("/tracks/ai"), api<Tournament[]>("/tournaments"), api<ActivityDay[]>("/activity/week")])
+      .then(([userData, trackData, tournamentData, activityData]) => {
         setUser(userData);
         setTrack(trackData);
         setTournaments(tournamentData);
+        setActivity(activityData);
       })
       .catch((err) => setLoadError(err instanceof Error ? err.message : "Не удалось загрузить арену"))
       .finally(() => setLoading(false));
   }, []);
 
   const lesson = track ? currentLesson(track) : null;
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const maxCount = Math.max(1, ...activity.map((day) => day.count));
+  const activityBars = activity.map((day) => ({
+    label: dayLabels[new Date(`${day.date}T00:00:00`).getDay()],
+    height: day.count === 0 ? 4 : Math.round((day.count / maxCount) * 66) + 10,
+    active: day.count > 0,
+    today: day.date === todayIso,
+  }));
+  const hasActivity = activity.some((day) => day.count > 0);
   const nextTournament = useMemo(
     () =>
       tournaments.find((item) => ["active", "published"].includes(item.status)) ??
@@ -126,17 +129,22 @@ export default function Dashboard() {
         <Card>
           <div className="flex justify-between items-baseline mb-4">
             <p className="text-[#6b6f76] text-[11px] font-bold tracking-[.12em] uppercase">Активность за неделю</p>
-            <strong className="text-xs text-[#16a34a]">{track.completed_lessons > 0 ? "есть прогресс" : "старт впереди"}</strong>
+            <strong className="text-xs text-[#16a34a]">{hasActivity ? "есть прогресс" : "старт впереди"}</strong>
           </div>
           <div className="flex items-end gap-2.5 h-[76px] mb-2.5">
-            {days.map((d) => (
-              <div key={d.label} className="flex-1 flex flex-col items-center gap-1.5">
-                <div className="w-full rounded-[7px]" style={{ height: `${d.h}px`, background: d.dark ? "#15171c" : d.active ? "#16a34a" : "rgba(21,23,28,.08)" }} />
-                <span className="text-[10px] text-[#a8a49b]">{d.label}</span>
+            {activityBars.map((day, index) => (
+              <div key={index} className="flex-1 flex flex-col items-center gap-1.5">
+                <div
+                  className="w-full rounded-[7px]"
+                  style={{ height: `${day.height}px`, background: day.today ? "#15171c" : day.active ? "#16a34a" : "rgba(21,23,28,.08)" }}
+                />
+                <span className="text-[10px] text-[#a8a49b]">{day.label}</span>
               </div>
             ))}
           </div>
-          <p className="text-[11.5px] text-[#6b6f76]">Скоро здесь появится реальная история активности.</p>
+          <p className="text-[11.5px] text-[#6b6f76]">
+            {hasActivity ? "Столбики показывают дни, когда ты проходил уроки, практику или турниры." : "Пройди урок или практику, чтобы здесь появилась активность."}
+          </p>
         </Card>
 
         <Card>
