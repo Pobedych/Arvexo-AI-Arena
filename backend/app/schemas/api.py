@@ -97,6 +97,8 @@ class TournamentOut(BaseModel):
     question_count: int
     max_score: int
     participation_status: str | None = None
+    topics: list[str] = Field(default_factory=list)
+    readiness: str | None = None
 
 
 class AttemptAnswerIn(BaseModel):
@@ -189,3 +191,13 @@ class TournamentUpdateIn(BaseModel):
 
 class TournamentQuestionSetIn(BaseModel):
     question_ids: list[UUID]
+
+
+class TrackUpdateIn(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    status: str | None = None
+
+
+class InviteUserIn(BaseModel):
+    user_id: UUID

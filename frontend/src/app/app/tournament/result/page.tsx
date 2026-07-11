@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { api, type Tournament, type TournamentResult } from "@/lib/api";
+import { api, formatDuration, type Tournament, type TournamentResult } from "@/lib/api";
 
 export default function TournamentResultPage() {
   return (
@@ -66,8 +66,21 @@ function TournamentResultView() {
 
       <div className="grid sm:grid-cols-3 gap-3.5 mb-3.5">
         <Metric dark label="Баллы" value={`${result.score}`} suffix={`/${result.max_score}`} />
-        <Metric label="Статус" value={result.status === "auto_submitted" ? "Авто" : "OK"} />
+        <Metric
+          label="Место"
+          value={result.place ? `${result.place}` : "—"}
+          suffix={result.participants ? ` / ${result.participants}` : ""}
+        />
         <Metric label="Верно" value={`${correctCount}`} suffix={` / ${totalCount}`} />
+      </div>
+
+      <div className="flex flex-wrap gap-2 mb-5.5 text-[12.5px] text-[#6b6f76]">
+        <span className="bg-white border border-[rgba(21,23,28,.07)] rounded-full px-3.5 py-1.5">
+          Время прохождения: <strong className="text-[#15171c]">{formatDuration(result.duration_seconds)}</strong>
+        </span>
+        <span className="bg-white border border-[rgba(21,23,28,.07)] rounded-full px-3.5 py-1.5">
+          Отправка: <strong className="text-[#15171c]">{result.status === "auto_submitted" ? "автоматическая" : "вручную"}</strong>
+        </span>
       </div>
 
       {!result.review_available && (
@@ -90,6 +103,11 @@ function TournamentResultView() {
                   </span>
                 </div>
                 <p className="text-[12px] text-[#6b6f76] leading-relaxed">{item.explanation}</p>
+                {item.lesson_id && !item.is_correct && (
+                  <Link href={`/app/lesson/${item.lesson_id}`} className="inline-block mt-1.5 text-[12px] font-bold text-[#16a34a]">
+                    Повторить тему{item.lesson_title ? `: ${item.lesson_title}` : ""} →
+                  </Link>
+                )}
               </div>
             ))}
           </div>

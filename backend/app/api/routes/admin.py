@@ -26,6 +26,7 @@ from app.models.entities import (
     Track,
 )
 from app.schemas.api import (
+    InviteUserIn,
     LessonCreateIn,
     LessonUpdateIn,
     QuestionCreateIn,
@@ -35,6 +36,7 @@ from app.schemas.api import (
     TournamentCreateIn,
     TournamentQuestionSetIn,
     TournamentUpdateIn,
+    TrackUpdateIn,
 )
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -150,6 +152,73 @@ def list_users(_: ArenaUser = Depends(get_current_admin), db: Session = Depends(
     ]
 
 
+@router.get("/users/{user_id}")
+def user_card(user_id: UUID, _: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
+    user = db.get(ArenaUser, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    progress = db.query(LessonProgress).filter(LessonProgress.user_id == user.id).all()
+    lessons = {lesson.id: lesson for lesson in db.query(Lesson).filter(Lesson.id.in_([row.lesson_id for row in progress])).all()} if progress else {}
+    attempts = db.query(TournamentAttempt).filter(TournamentAttempt.user_id == user.id).all()
+    tournaments = {t.id: t for t in db.query(Tournament).filter(Tournament.id.in_([a.tournament_id for a in attempts])).all()} if attempts else {}
+    invitations = db.query(TournamentInvitation).filter(TournamentInvitation.user_id == user.id).all()
+    return {
+        "id": user.id,
+        "account_user_id": user.account_user_id,
+        "email": user.email,
+        "display_name": user.display_name,
+        "role": user.role.value,
+        "selected_track_id": user.selected_track_id,
+        "is_active": user.is_active,
+        "created_at": user.created_at,
+        "progress": [
+            {
+                "lesson_id": row.lesson_id,
+                "lesson_title": lessons[row.lesson_id].title if row.lesson_id in lessons else None,
+                "status": row.status.value,
+                "best_score": row.best_score,
+                "max_score": row.max_score,
+            }
+            for row in progress
+        ],
+        "attempts": [
+            {
+                "tournament_id": attempt.tournament_id,
+                "tournament_title": tournaments[attempt.tournament_id].title if attempt.tournament_id in tournaments else None,
+                "status": attempt.status.value,
+                "score": attempt.score,
+                "max_score": attempt.max_score,
+                "started_at": attempt.started_at,
+                "submitted_at": attempt.submitted_at,
+            }
+            for attempt in attempts
+        ],
+        "invitations": [{"tournament_id": row.tournament_id, "status": row.status} for row in invitations],
+    }
+
+
+@router.post("/users/{user_id}/block")
+def block_user(user_id: UUID, admin: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
+    user = db.get(ArenaUser, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.id == admin.id:
+        raise HTTPException(status_code=400, detail="You cannot block yourself")
+    user.is_active = False
+    db.commit()
+    return {"ok": True, "is_active": user.is_active}
+
+
+@router.post("/users/{user_id}/unblock")
+def unblock_user(user_id: UUID, _: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
+    user = db.get(ArenaUser, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    user.is_active = True
+    db.commit()
+    return {"ok": True, "is_active": user.is_active}
+
+
 @router.get("/tracks")
 def list_tracks(_: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
     tracks = db.query(Track).options(selectinload(Track.sections).selectinload(Section.lessons)).order_by(Track.created_at).all()
@@ -174,6 +243,21 @@ def _section_dict(section: Section) -> dict:
         "order": section.order,
         "lessons_count": len(section.lessons),
     }
+
+
+@router.patch("/tracks/{track_id}")
+def update_track(track_id: UUID, payload: TrackUpdateIn, _: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
+    track = db.get(Track, track_id)
+    if not track:
+        raise HTTPException(status_code=404, detail="Track not found")
+    data = payload.model_dump(exclude_unset=True)
+    if "status" in data:
+        data["status"] = _content_status(data["status"])
+    for key, value in data.items():
+        setattr(track, key, value)
+    db.commit()
+    db.refresh(track)
+    return {"id": track.id, "slug": track.slug, "title": track.title, "description": track.description, "status": track.status.value}
 
 
 @router.post("/sections")
@@ -456,12 +540,124 @@ def publish_tournament(tournament_id: UUID, _: ArenaUser = Depends(get_current_a
     return {"ok": True, "status": tournament.status.value, "invitations_created": created}
 
 
-@router.post("/tournaments/{tournament_id}/finish")
-def finish_tournament(tournament_id: UUID, _: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
+@router.post("/tournaments/{tournament_id}/cancel")
+def cancel_tournament(tournament_id: UUID, _: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
     tournament = db.get(Tournament, tournament_id)
     if not tournament:
         raise HTTPException(status_code=404, detail="Tournament not found")
+    if tournament.status == TournamentStatus.finished:
+        raise HTTPException(status_code=400, detail="Finished tournament cannot be cancelled")
+    tournament.status = TournamentStatus.cancelled
+    db.query(TournamentInvitation).filter(
+        TournamentInvitation.tournament_id == tournament.id,
+        TournamentInvitation.status.in_(["created", "seen"]),
+    ).update({"status": "expired"}, synchronize_session=False)
+    db.commit()
+    return {"ok": True, "status": tournament.status.value}
+
+
+@router.get("/tournaments/{tournament_id}/invitations")
+def tournament_invitations(tournament_id: UUID, _: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
+    rows = (
+        db.query(TournamentInvitation, ArenaUser)
+        .join(ArenaUser, ArenaUser.id == TournamentInvitation.user_id)
+        .filter(TournamentInvitation.tournament_id == tournament_id)
+        .order_by(TournamentInvitation.created_at)
+        .all()
+    )
+    return [
+        {
+            "id": invitation.id,
+            "user_id": user.id,
+            "display_name": user.display_name,
+            "email": user.email,
+            "status": invitation.status,
+            "created_at": invitation.created_at,
+        }
+        for invitation, user in rows
+    ]
+
+
+@router.post("/tournaments/{tournament_id}/invite")
+def invite_user(tournament_id: UUID, payload: InviteUserIn, _: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
+    tournament = db.get(Tournament, tournament_id)
+    if not tournament:
+        raise HTTPException(status_code=404, detail="Tournament not found")
+    if tournament.status not in {TournamentStatus.published, TournamentStatus.active}:
+        raise HTTPException(status_code=400, detail="Tournament must be published to invite users")
+    user = db.get(ArenaUser, payload.user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    invitation = (
+        db.query(TournamentInvitation)
+        .filter(TournamentInvitation.user_id == user.id, TournamentInvitation.tournament_id == tournament.id)
+        .one_or_none()
+    )
+    if invitation:
+        if invitation.status == "expired":
+            invitation.status = "created"
+    else:
+        invitation = TournamentInvitation(user_id=user.id, tournament_id=tournament.id, status="created")
+        db.add(invitation)
+    db.commit()
+    return {"ok": True, "status": invitation.status}
+
+
+@router.get("/tournaments/{tournament_id}/attempts/{user_id}")
+def attempt_detail(tournament_id: UUID, user_id: UUID, _: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
+    attempt = (
+        db.query(TournamentAttempt)
+        .filter(TournamentAttempt.tournament_id == tournament_id, TournamentAttempt.user_id == user_id)
+        .one_or_none()
+    )
+    if not attempt:
+        raise HTTPException(status_code=404, detail="Attempt not found")
+    answers = {str(row.question_id): row for row in db.query(TournamentAnswer).filter(TournamentAnswer.attempt_id == attempt.id).all()}
+    items = (
+        db.query(TournamentQuestion)
+        .options(selectinload(TournamentQuestion.question))
+        .filter(TournamentQuestion.tournament_id == tournament_id)
+        .order_by(TournamentQuestion.order)
+        .all()
+    )
+    return {
+        "attempt_id": attempt.id,
+        "user_id": attempt.user_id,
+        "status": attempt.status.value,
+        "score": attempt.score,
+        "max_score": attempt.max_score,
+        "started_at": attempt.started_at,
+        "submitted_at": attempt.submitted_at,
+        "answers": [
+            {
+                "question_id": item.question_id,
+                "prompt": item.question.prompt,
+                "type": item.question.type.value,
+                "answer": answers[str(item.question_id)].answer if str(item.question_id) in answers else None,
+                "correct_answer": item.question.correct_answer,
+                "is_correct": answers[str(item.question_id)].is_correct if str(item.question_id) in answers else None,
+                "points_awarded": answers[str(item.question_id)].points_awarded if str(item.question_id) in answers else 0,
+                "points": item.question.points,
+            }
+            for item in items
+        ],
+    }
+
+
+@router.post("/tournaments/{tournament_id}/finish")
+def finish_tournament(tournament_id: UUID, _: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
+    from app.api.routes.tournaments import _finalize_attempts
+
+    tournament = (
+        db.query(Tournament)
+        .options(selectinload(Tournament.questions).selectinload(TournamentQuestion.question))
+        .filter(Tournament.id == tournament_id)
+        .one_or_none()
+    )
+    if not tournament:
+        raise HTTPException(status_code=404, detail="Tournament not found")
     tournament.status = TournamentStatus.finished
+    _finalize_attempts(db, tournament)
     db.commit()
     return {"ok": True, "status": tournament.status.value}
 

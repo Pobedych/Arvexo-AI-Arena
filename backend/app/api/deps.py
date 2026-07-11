@@ -14,6 +14,8 @@ def get_current_user(
     user = get_user_by_session_token(db, session_token)
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
+    if not user.is_active:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is blocked")
     return user
 
 

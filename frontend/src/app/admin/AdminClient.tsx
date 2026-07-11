@@ -76,11 +76,48 @@ type UserRow = {
 
 type ResultRow = {
   place: number;
+  user_id: string;
   display_name: string;
   email: string | null;
   status: string;
   score: number;
   max_score: number;
+};
+
+type InvitationRow = {
+  id: string;
+  user_id: string;
+  display_name: string;
+  email: string | null;
+  status: string;
+};
+
+type AttemptDetail = {
+  attempt_id: string;
+  user_id: string;
+  status: string;
+  score: number;
+  max_score: number;
+  answers: Array<{
+    question_id: string;
+    prompt: string;
+    type: string;
+    answer: Record<string, unknown> | null;
+    correct_answer: Record<string, unknown>;
+    is_correct: boolean | null;
+    points_awarded: number;
+    points: number;
+  }>;
+};
+
+type UserDetail = {
+  id: string;
+  display_name: string;
+  email: string | null;
+  is_active: boolean;
+  progress: Array<{ lesson_id: string; lesson_title: string | null; status: string; best_score: number; max_score: number }>;
+  attempts: Array<{ tournament_id: string; tournament_title: string | null; status: string; score: number; max_score: number }>;
+  invitations: Array<{ tournament_id: string; status: string }>;
 };
 
 const tabs = [
@@ -135,6 +172,7 @@ const statusLabels: Record<string, string> = {
   archived: "В архиве",
   active: "Идёт",
   finished: "Завершён",
+  cancelled: "Отменён",
 };
 
 const typeLabels: Record<string, string> = {
@@ -165,6 +203,9 @@ export default function AdminClient() {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [users, setUsers] = useState<UserRow[]>([]);
   const [results, setResults] = useState<Record<string, ResultRow[]>>({});
+  const [invitations, setInvitations] = useState<Record<string, InvitationRow[]>>({});
+  const [attemptDetail, setAttemptDetail] = useState<AttemptDetail | null>(null);
+  const [userDetail, setUserDetail] = useState<UserDetail | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [lessonSearch, setLessonSearch] = useState("");
@@ -500,6 +541,70 @@ export default function AdminClient() {
   async function loadResults(id: string) {
     const rows = await api<ResultRow[]>(`/admin/tournaments/${id}/results`);
     setResults((current) => ({ ...current, [id]: rows }));
+  }
+
+  async function cancelTournament(id: string) {
+    if (!window.confirm("Отменить турнир? Активные приглашения станут неактуальными.")) return;
+    try {
+      await api(`/admin/tournaments/${id}/cancel`, { method: "POST" });
+      setNotice("Турнир отменён");
+      await loadAll();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось отменить турнир");
+    }
+  }
+
+  async function loadInvitations(id: string) {
+    try {
+      const rows = await api<InvitationRow[]>(`/admin/tournaments/${id}/invitations`);
+      setInvitations((current) => ({ ...current, [id]: rows }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось загрузить приглашения");
+    }
+  }
+
+  async function inviteUser(tournamentId: string, userId: string) {
+    if (!userId) return;
+    try {
+      await api(`/admin/tournaments/${tournamentId}/invite`, { method: "POST", body: JSON.stringify({ user_id: userId }) });
+      setNotice("Приглашение отправлено");
+      await loadInvitations(tournamentId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось отправить приглашение");
+    }
+  }
+
+  async function loadAttemptDetail(tournamentId: string, userId: string) {
+    try {
+      const detail = await api<AttemptDetail>(`/admin/tournaments/${tournamentId}/attempts/${userId}`);
+      setAttemptDetail(detail);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось загрузить попытку");
+    }
+  }
+
+  async function toggleUserBlock(user: UserRow) {
+    const action = user.is_active ? "block" : "unblock";
+    if (user.is_active && !window.confirm(`Заблокировать пользователя «${user.display_name}»?`)) return;
+    try {
+      await api(`/admin/users/${user.id}/${action}`, { method: "POST" });
+      setNotice(user.is_active ? "Пользователь заблокирован" : "Пользователь разблокирован");
+      await loadAll();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось изменить статус пользователя");
+    }
+  }
+
+  async function loadUserDetail(userId: string) {
+    if (userDetail?.id === userId) {
+      setUserDetail(null);
+      return;
+    }
+    try {
+      setUserDetail(await api<UserDetail>(`/admin/users/${userId}`));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось загрузить карточку пользователя");
+    }
   }
 
   return (
@@ -908,18 +1013,79 @@ export default function AdminClient() {
                     </a>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <button onClick={() => publishTournament(tournament.id)} className="rounded-full bg-[#16a34a] px-3 py-1.5 text-[11.5px] font-bold text-white">Publish + invites</button>
-                    <button onClick={() => finishTournament(tournament.id)} className="rounded-full bg-[#15171c] px-3 py-1.5 text-[11.5px] font-bold text-white">Finish</button>
-                    <button onClick={() => loadResults(tournament.id)} className="rounded-full border border-[rgba(21,23,28,.14)] px-3 py-1.5 text-[11.5px] font-bold">Results</button>
+                    {["draft", "cancelled"].includes(tournament.status) && (
+                      <button onClick={() => publishTournament(tournament.id)} className="rounded-full bg-[#16a34a] px-3 py-1.5 text-[11.5px] font-bold text-white">Опубликовать + инвайты</button>
+                    )}
+                    {["published", "active"].includes(tournament.status) && (
+                      <>
+                        <button onClick={() => finishTournament(tournament.id)} className="rounded-full bg-[#15171c] px-3 py-1.5 text-[11.5px] font-bold text-white">Завершить</button>
+                        <button onClick={() => cancelTournament(tournament.id)} className="rounded-full border border-[rgba(255,77,61,.3)] px-3 py-1.5 text-[11.5px] font-bold text-[#b42318]">Отменить</button>
+                      </>
+                    )}
+                    <button onClick={() => loadInvitations(tournament.id)} className="rounded-full border border-[rgba(21,23,28,.14)] px-3 py-1.5 text-[11.5px] font-bold">Приглашения</button>
+                    <button onClick={() => loadResults(tournament.id)} className="rounded-full border border-[rgba(21,23,28,.14)] px-3 py-1.5 text-[11.5px] font-bold">Результаты</button>
                   </div>
+                  {invitations[tournament.id] && (
+                    <div className="mt-4 rounded-[12px] border border-[rgba(21,23,28,.08)]">
+                      <div className="flex items-center justify-between gap-3 border-b border-[rgba(21,23,28,.08)] bg-[#fafafa] px-3 py-2">
+                        <span className="text-[11px] font-bold uppercase tracking-[.06em] text-[#6b6f76]">
+                          Приглашения: {invitations[tournament.id].length}
+                        </span>
+                        <select
+                          defaultValue=""
+                          onChange={(event) => {
+                            inviteUser(tournament.id, event.target.value);
+                            event.target.value = "";
+                          }}
+                          className="rounded-[8px] border border-[rgba(21,23,28,.14)] bg-white px-2 py-1.5 text-[11.5px] font-semibold"
+                        >
+                          <option value="">+ Пригласить вручную</option>
+                          {users
+                            .filter((user) => !invitations[tournament.id].some((row) => row.user_id === user.id))
+                            .map((user) => (
+                              <option key={user.id} value={user.id}>{user.display_name}{user.email ? ` (${user.email})` : ""}</option>
+                            ))}
+                        </select>
+                      </div>
+                      {invitations[tournament.id].map((row) => (
+                        <div key={row.id} className="grid grid-cols-[1fr_1fr_90px] gap-2 border-b border-[rgba(21,23,28,.06)] px-3 py-2 text-[12px] last:border-b-0">
+                          <span className="truncate">{row.display_name}</span>
+                          <span className="truncate text-[#6b6f76]">{row.email || "—"}</span>
+                          <span className="font-bold">{row.status}</span>
+                        </div>
+                      ))}
+                      {invitations[tournament.id].length === 0 && <p className="px-3 py-3 text-[12px] text-[#6b6f76]">Приглашений пока нет</p>}
+                    </div>
+                  )}
                   {results[tournament.id] && (
                     <div className="mt-4 overflow-hidden rounded-[12px] border border-[rgba(21,23,28,.08)]">
                       {results[tournament.id].map((row) => (
-                        <div key={`${row.place}-${row.email}`} className="grid grid-cols-[48px_1fr_90px_80px] gap-2 border-b border-[rgba(21,23,28,.06)] px-3 py-2 text-[12px] last:border-b-0">
+                        <div key={`${row.place}-${row.user_id}`} className="grid grid-cols-[40px_1fr_110px_70px_80px] items-center gap-2 border-b border-[rgba(21,23,28,.06)] px-3 py-2 text-[12px] last:border-b-0">
                           <span>#{row.place}</span>
                           <span className="truncate">{row.display_name}</span>
                           <span>{row.status}</span>
                           <strong>{row.score}/{row.max_score}</strong>
+                          <button onClick={() => loadAttemptDetail(tournament.id, row.user_id)} className="rounded-[6px] border border-[rgba(21,23,28,.14)] px-2 py-1 text-[10.5px] font-bold">Ответы</button>
+                        </div>
+                      ))}
+                      {results[tournament.id].length === 0 && <p className="px-3 py-3 text-[12px] text-[#6b6f76]">Попыток пока нет</p>}
+                    </div>
+                  )}
+                  {attemptDetail && results[tournament.id]?.some((row) => row.user_id === attemptDetail.user_id) && (
+                    <div className="mt-3 rounded-[12px] border border-[rgba(21,23,28,.08)] bg-[#fbfaf6] p-3">
+                      <div className="mb-2 flex items-center justify-between">
+                        <strong className="text-[12.5px]">Ответы участника · {attemptDetail.score}/{attemptDetail.max_score}</strong>
+                        <button onClick={() => setAttemptDetail(null)} className="text-[11.5px] font-bold text-[#6b6f76]">Закрыть</button>
+                      </div>
+                      {attemptDetail.answers.map((item, index) => (
+                        <div key={item.question_id} className="border-b border-[rgba(21,23,28,.06)] py-2 text-[12px] last:border-b-0">
+                          <p className="mb-0.5 font-semibold">#{index + 1} {item.prompt}</p>
+                          <p className="text-[#6b6f76]">
+                            Ответ: {item.answer ? JSON.stringify(item.answer) : "—"} · Верный: {JSON.stringify(item.correct_answer)} ·{" "}
+                            <span className={item.is_correct ? "font-bold text-[#15803d]" : "font-bold text-[#b42318]"}>
+                              {item.points_awarded}/{item.points} б.
+                            </span>
+                          </p>
                         </div>
                       ))}
                     </div>
@@ -933,11 +1099,49 @@ export default function AdminClient() {
         {active === "users" && (
           <section className="rounded-[18px] border border-[rgba(21,23,28,.08)] bg-white">
             {users.map((user) => (
-              <div key={user.id} className="grid gap-2 border-b border-[rgba(21,23,28,.07)] px-5 py-4 text-[13px] last:border-b-0 sm:grid-cols-[1fr_220px_90px_80px]">
-                <strong>{user.display_name}</strong>
-                <span className="text-[#6b6f76]">{user.email || "email не передан"}</span>
-                <span>{user.role}</span>
-                <span className={user.is_active ? "text-[#16a34a]" : "text-[#ff4d3d]"}>{user.is_active ? "active" : "blocked"}</span>
+              <div key={user.id} className="border-b border-[rgba(21,23,28,.07)] last:border-b-0">
+                <div className="grid items-center gap-2 px-5 py-4 text-[13px] sm:grid-cols-[1fr_220px_70px_80px_180px]">
+                  <strong className="truncate">{user.display_name}</strong>
+                  <span className="truncate text-[#6b6f76]">{user.email || "email не передан"}</span>
+                  <span>{user.role}</span>
+                  <span className={user.is_active ? "text-[#16a34a]" : "text-[#ff4d3d]"}>{user.is_active ? "active" : "blocked"}</span>
+                  <span className="flex gap-2">
+                    <button onClick={() => loadUserDetail(user.id)} className="rounded-[6px] border border-[rgba(21,23,28,.14)] px-3 py-1.5 text-[11.5px] font-bold">
+                      {userDetail?.id === user.id ? "Скрыть" : "Карточка"}
+                    </button>
+                    <button
+                      onClick={() => toggleUserBlock(user)}
+                      className={`rounded-[6px] px-3 py-1.5 text-[11.5px] font-bold ${user.is_active ? "border border-[rgba(255,77,61,.3)] text-[#b42318]" : "bg-[#16a34a] text-white"}`}
+                    >
+                      {user.is_active ? "Заблокировать" : "Разблокировать"}
+                    </button>
+                  </span>
+                </div>
+                {userDetail?.id === user.id && (
+                  <div className="grid gap-3 bg-[#fbfaf6] px-5 py-4 text-[12px] sm:grid-cols-2">
+                    <div>
+                      <p className="mb-1.5 text-[10.5px] font-bold uppercase tracking-[.08em] text-[#6b6f76]">Прогресс обучения</p>
+                      {userDetail.progress.length === 0 && <p className="text-[#6b6f76]">Прогресса пока нет</p>}
+                      {userDetail.progress.map((row) => (
+                        <p key={row.lesson_id} className="py-0.5">
+                          {row.lesson_title ?? "Урок"} — <strong>{row.status}</strong> ({row.best_score}/{row.max_score})
+                        </p>
+                      ))}
+                    </div>
+                    <div>
+                      <p className="mb-1.5 text-[10.5px] font-bold uppercase tracking-[.08em] text-[#6b6f76]">Турниры</p>
+                      {userDetail.attempts.length === 0 && <p className="text-[#6b6f76]">Попыток пока нет</p>}
+                      {userDetail.attempts.map((row) => (
+                        <p key={row.tournament_id} className="py-0.5">
+                          {row.tournament_title ?? "Турнир"} — <strong>{row.status}</strong> ({row.score}/{row.max_score})
+                        </p>
+                      ))}
+                      {userDetail.invitations.length > 0 && (
+                        <p className="mt-1.5 text-[#6b6f76]">Приглашений: {userDetail.invitations.length}</p>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </section>

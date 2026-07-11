@@ -78,7 +78,9 @@ export type Tournament = {
   status: "draft" | "published" | "active" | "finished" | "cancelled" | string;
   question_count: number;
   max_score: number;
-  participation_status: "invited" | "registered" | "in_progress" | "submitted" | "auto_submitted" | string | null;
+  participation_status: "invited" | "registered" | "in_progress" | "submitted" | "auto_submitted" | "missed" | string | null;
+  topics: string[];
+  readiness: "ready" | "prepare" | string | null;
 };
 
 export type Attempt = {
@@ -93,6 +95,9 @@ export type TournamentResult = {
   status: string;
   score: number;
   max_score: number;
+  duration_seconds: number | null;
+  place: number | null;
+  participants: number | null;
   review_available: boolean;
   review?: Array<{
     question_id: string;
@@ -102,6 +107,8 @@ export type TournamentResult = {
     is_correct: boolean;
     points: number;
     explanation: string;
+    lesson_id: string | null;
+    lesson_title: string | null;
   }>;
 };
 

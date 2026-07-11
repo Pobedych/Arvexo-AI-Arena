@@ -1,3 +1,4 @@
+import random
 from datetime import timedelta
 from uuid import UUID
 
@@ -8,6 +9,9 @@ from app.api.deps import get_current_user
 from app.db.session import get_db
 from app.models.entities import (
     ArenaUser,
+    Lesson,
+    LessonProgress,
+    LessonStatus,
     ParticipationStatus,
     Question,
     Tournament,
@@ -42,7 +46,7 @@ def _max_score(tournament: Tournament) -> int:
     return sum(item.question.points for item in tournament.questions)
 
 
-def _sync_status(tournament: Tournament) -> None:
+def _sync_status(tournament: Tournament, db: Session | None = None) -> None:
     now = now_utc()
     starts_at = _aware(tournament.starts_at)
     ends_at = _aware(tournament.ends_at)
@@ -50,6 +54,49 @@ def _sync_status(tournament: Tournament) -> None:
         tournament.status = TournamentStatus.active
     elif tournament.status in {TournamentStatus.published, TournamentStatus.active} and now >= ends_at:
         tournament.status = TournamentStatus.finished
+    if db is not None and tournament.status == TournamentStatus.finished:
+        _finalize_attempts(db, tournament)
+
+
+def _finalize_attempts(db: Session, tournament: Tournament) -> None:
+    """After the tournament window closes: auto-submit started attempts, mark never-started ones as missed."""
+    attempts = db.query(TournamentAttempt).filter(TournamentAttempt.tournament_id == tournament.id).all()
+    for attempt in attempts:
+        if attempt.status == ParticipationStatus.in_progress:
+            _submit_attempt(db, attempt, tournament, auto=True)
+        elif attempt.status == ParticipationStatus.registered:
+            attempt.status = ParticipationStatus.missed
+
+
+def _linked_lessons(db: Session, tournament: Tournament) -> list[Lesson]:
+    lesson_ids = {item.question.lesson_id for item in tournament.questions if item.question.lesson_id}
+    if not lesson_ids:
+        return []
+    return db.query(Lesson).filter(Lesson.id.in_(lesson_ids)).all()
+
+
+def _readiness(db: Session, user: ArenaUser, lessons: list[Lesson]) -> str | None:
+    """§12: 'ready' when >= 70% of linked lessons are completed, otherwise 'prepare'."""
+    if not lessons:
+        return None
+    completed = (
+        db.query(LessonProgress)
+        .filter(
+            LessonProgress.user_id == user.id,
+            LessonProgress.lesson_id.in_([lesson.id for lesson in lessons]),
+            LessonProgress.status == LessonStatus.completed,
+        )
+        .count()
+    )
+    return "ready" if completed >= 0.7 * len(lessons) else "prepare"
+
+
+def _shuffled_questions(tournament: Tournament, attempt: TournamentAttempt):
+    """§13.9: per-participant deterministic question order, stable across page reloads."""
+    items = list(tournament.questions)
+    if tournament.randomize_questions:
+        random.Random(str(attempt.id)).shuffle(items)
+    return items
 
 
 def _attempt(db: Session, user: ArenaUser, tournament: Tournament) -> TournamentAttempt | None:
@@ -84,9 +131,12 @@ def list_tournaments(db: Session = Depends(get_db), current_user: ArenaUser = De
     tournaments = db.query(Tournament).options(selectinload(Tournament.questions).selectinload(TournamentQuestion.question)).order_by(Tournament.starts_at).all()
     output = []
     for tournament in tournaments:
-        _sync_status(tournament)
+        if tournament.status == TournamentStatus.draft:
+            continue
+        _sync_status(tournament, db)
         attempt = _attempt(db, current_user, tournament)
         invitation = db.query(TournamentInvitation).filter(TournamentInvitation.user_id == current_user.id, TournamentInvitation.tournament_id == tournament.id).one_or_none()
+        lessons = _linked_lessons(db, tournament)
         output.append(
             TournamentOut(
                 id=tournament.id,
@@ -99,16 +149,30 @@ def list_tournaments(db: Session = Depends(get_db), current_user: ArenaUser = De
                 question_count=len(tournament.questions),
                 max_score=_max_score(tournament),
                 participation_status=attempt.status.value if attempt else ("invited" if invitation else None),
+                topics=[lesson.title for lesson in lessons],
+                readiness=_readiness(db, current_user, lessons),
             )
         )
     db.commit()
     return output
 
 
+@router.post("/{tournament_id}/invitation/seen")
+def mark_invitation_seen(tournament_id: UUID, db: Session = Depends(get_db), current_user: ArenaUser = Depends(get_current_user)):
+    tournament = _tournament(db, tournament_id)
+    invitation = _invitation(db, current_user, tournament)
+    if not invitation:
+        raise HTTPException(status_code=404, detail="Invitation not found")
+    if invitation.status == "created":
+        invitation.status = "seen"
+        db.commit()
+    return {"status": invitation.status}
+
+
 @router.post("/{tournament_id}/register")
 def register(tournament_id: UUID, db: Session = Depends(get_db), current_user: ArenaUser = Depends(get_current_user)):
     tournament = _tournament(db, tournament_id)
-    _sync_status(tournament)
+    _sync_status(tournament, db)
     if tournament.status not in {TournamentStatus.published, TournamentStatus.active}:
         raise HTTPException(status_code=400, detail="Tournament registration is closed")
     invitation = _invitation(db, current_user, tournament)
@@ -126,7 +190,7 @@ def register(tournament_id: UUID, db: Session = Depends(get_db), current_user: A
 @router.post("/{tournament_id}/start")
 def start(tournament_id: UUID, db: Session = Depends(get_db), current_user: ArenaUser = Depends(get_current_user)):
     tournament = _tournament(db, tournament_id)
-    _sync_status(tournament)
+    _sync_status(tournament, db)
     if tournament.status != TournamentStatus.active:
         raise HTTPException(status_code=400, detail="Tournament is not active")
     attempt = _attempt(db, current_user, tournament)
@@ -160,7 +224,7 @@ def get_attempt(tournament_id: UUID, db: Session = Depends(get_db), current_user
         "due_at": attempt.due_at,
         "questions": [
             {"id": item.question.id, "prompt": item.question.prompt, "type": item.question.type.value, "options": item.question.options, "points": item.question.points}
-            for item in tournament.questions
+            for item in _shuffled_questions(tournament, attempt)
         ],
     }
 
@@ -204,16 +268,31 @@ def submit(tournament_id: UUID, db: Session = Depends(get_db), current_user: Are
 @router.get("/{tournament_id}/result")
 def result(tournament_id: UUID, db: Session = Depends(get_db), current_user: ArenaUser = Depends(get_current_user)):
     tournament = _tournament(db, tournament_id)
-    _sync_status(tournament)
+    _sync_status(tournament, db)
     attempt = _attempt(db, current_user, tournament)
     if not attempt or attempt.status not in {ParticipationStatus.submitted, ParticipationStatus.auto_submitted}:
         raise HTTPException(status_code=404, detail="Result not available")
+    duration = None
+    if attempt.started_at and attempt.submitted_at:
+        duration = int((_aware(attempt.submitted_at) - _aware(attempt.started_at)).total_seconds())
     if tournament.status != TournamentStatus.finished:
-        return {"status": attempt.status.value, "score": attempt.score, "max_score": attempt.max_score, "review_available": False}
+        return {
+            "status": attempt.status.value,
+            "score": attempt.score,
+            "max_score": attempt.max_score,
+            "duration_seconds": duration,
+            "place": None,
+            "participants": None,
+            "review_available": False,
+        }
+    db.commit()
+    place, participants = _place(db, tournament, attempt)
+    lessons = {str(lesson.id): lesson for lesson in _linked_lessons(db, tournament)}
     answers = {str(row.question_id): row for row in db.query(TournamentAnswer).filter(TournamentAnswer.attempt_id == attempt.id).all()}
     review = []
     for item in tournament.questions:
         row = answers.get(str(item.question_id))
+        lesson = lessons.get(str(item.question.lesson_id)) if item.question.lesson_id else None
         review.append(
             {
                 "question_id": item.question_id,
@@ -223,9 +302,50 @@ def result(tournament_id: UUID, db: Session = Depends(get_db), current_user: Are
                 "is_correct": row.is_correct if row else False,
                 "points": row.points_awarded if row else 0,
                 "explanation": item.question.explanation,
+                "lesson_id": lesson.id if lesson else None,
+                "lesson_title": lesson.title if lesson else None,
             }
         )
-    return {"status": attempt.status.value, "score": attempt.score, "max_score": attempt.max_score, "review_available": True, "review": review}
+    return {
+        "status": attempt.status.value,
+        "score": attempt.score,
+        "max_score": attempt.max_score,
+        "duration_seconds": duration,
+        "place": place,
+        "participants": participants,
+        "review_available": True,
+        "review": review,
+    }
+
+
+def _place(db: Session, tournament: Tournament, attempt: TournamentAttempt) -> tuple[int | None, int]:
+    """§13.7 ordering: score desc → duration asc → submitted_at asc."""
+    attempts = (
+        db.query(TournamentAttempt)
+        .filter(
+            TournamentAttempt.tournament_id == tournament.id,
+            TournamentAttempt.status.in_([ParticipationStatus.submitted, ParticipationStatus.auto_submitted]),
+        )
+        .all()
+    )
+
+    def duration_seconds(row: TournamentAttempt) -> float:
+        if row.started_at and row.submitted_at:
+            return (_aware(row.submitted_at) - _aware(row.started_at)).total_seconds()
+        return float("inf")
+
+    ordered = sorted(attempts, key=lambda a: (-a.score, duration_seconds(a), _aware(a.submitted_at) if a.submitted_at else now_utc()))
+    rank = 0
+    prev_key = None
+    place = None
+    for index, row in enumerate(ordered):
+        key = (row.score, duration_seconds(row))
+        if key != prev_key:
+            rank = index + 1
+            prev_key = key
+        if row.id == attempt.id:
+            place = rank
+    return place, len(ordered)
 
 
 def public_display_name(display_name: str) -> str:
@@ -238,7 +358,8 @@ def public_display_name(display_name: str) -> str:
 @router.get("/{tournament_id}/leaderboard")
 def leaderboard(tournament_id: UUID, db: Session = Depends(get_db), current_user: ArenaUser = Depends(get_current_user)):
     tournament = _tournament(db, tournament_id)
-    _sync_status(tournament)
+    _sync_status(tournament, db)
+    db.commit()
     participation = _attempt(db, current_user, tournament)
     if not participation:
         raise HTTPException(status_code=403, detail="Not a participant")

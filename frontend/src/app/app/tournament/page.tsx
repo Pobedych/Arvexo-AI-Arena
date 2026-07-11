@@ -50,6 +50,12 @@ function TournamentView() {
     [tournaments, search],
   );
 
+  useEffect(() => {
+    if (primary?.participation_status === "invited") {
+      api(`/tournaments/${primary.id}/invitation/seen`, { method: "POST" }).catch(() => {});
+    }
+  }, [primary?.id, primary?.participation_status]);
+
   async function register(tournament: Tournament) {
     setBusyId(tournament.id);
     setError(null);
@@ -104,9 +110,31 @@ function TournamentView() {
           <p className="text-sm leading-relaxed text-[#6b6f76] mb-5 max-w-[480px]">{primary.description}</p>
           <div className="grid gap-2 mb-5.5">
             <Info label="Формат" value={`${primary.question_count} задач · ${primary.max_score} баллов`} />
-            <Info label="Готовность" value={`${track?.progress_percent ?? 0}%`} accent />
+            <Info
+              label="Готовность"
+              value={
+                primary.readiness
+                  ? primary.readiness === "ready"
+                    ? "Готов"
+                    : "Стоит подготовиться"
+                  : `${track?.progress_percent ?? 0}%`
+              }
+              accent={primary.readiness !== "prepare"}
+            />
             <Info label="Статус участия" value={participationLabel(primary.participation_status)} />
           </div>
+          {primary.topics.length > 0 && (
+            <div className="mb-5">
+              <p className="text-[11px] font-bold tracking-[.1em] uppercase text-[#6b6f76] mb-2">Проверяемые темы</p>
+              <div className="flex flex-wrap gap-1.5">
+                {primary.topics.map((topic) => (
+                  <span key={topic} className="text-[11.5px] font-semibold bg-[#f6f4ee] rounded-full px-3 py-1.5">
+                    {topic}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
           {error && <p className="text-[#ff4d3d] text-xs font-semibold mb-3">{error}</p>}
           <div className="flex gap-2.5 flex-wrap">
             {primary.status === "active" ? (
@@ -185,5 +213,6 @@ function participationLabel(status: Tournament["participation_status"]) {
   if (status === "in_progress") return "Попытка начата";
   if (status === "submitted") return "Ответы отправлены";
   if (status === "auto_submitted") return "Автоотправка";
+  if (status === "missed") return "Попытка пропущена";
   return "Не зарегистрирован";
 }
