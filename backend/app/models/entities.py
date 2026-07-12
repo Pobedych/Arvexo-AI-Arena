@@ -39,6 +39,7 @@ class QuestionType(str, enum.Enum):
     multiple_choice = "multiple_choice"
     short_text = "short_text"
     number = "number"
+    sequence = "sequence"
 
 
 class TournamentStatus(str, enum.Enum):

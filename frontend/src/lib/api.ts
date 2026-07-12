@@ -51,7 +51,7 @@ export type ActivityDay = {
 export type Question = {
   id: string;
   prompt: string;
-  type: "single_choice" | "multiple_choice" | "short_text" | "number" | string;
+  type: "single_choice" | "multiple_choice" | "short_text" | "number" | "sequence" | string;
   options: string[] | null;
   points: number;
   explanation?: string | null;
@@ -205,5 +205,22 @@ export function toApiAnswer(question: Question, value: AnswerValue | undefined) 
   if (question.type === "single_choice") return { option: value };
   if (question.type === "multiple_choice") return { options: Array.isArray(value) ? value : [] };
   if (question.type === "number") return { number: Number(value) };
+  if (question.type === "sequence") return { order: Array.isArray(value) ? value : [] };
   return { text: String(value ?? "") };
+}
+
+export function sequenceInitialOrder(question: Question): number[] {
+  const length = question.options?.length ?? 0;
+  const order = Array.from({ length }, (_, index) => index);
+  const hash = Array.from(question.id).reduce((value, character) => ((value * 31) + character.charCodeAt(0)) >>> 0, 2166136261);
+
+  for (let index = order.length - 1; index > 0; index -= 1) {
+    const swapIndex = (hash + index * 17) % (index + 1);
+    [order[index], order[swapIndex]] = [order[swapIndex], order[index]];
+  }
+
+  if (order.length > 1 && order.every((value, index) => value === index)) {
+    order.push(order.shift() as number);
+  }
+  return order;
 }

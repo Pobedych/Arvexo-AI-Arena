@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { api, toApiAnswer, type AnswerValue, type PracticeCheckResult, type Question } from "@/lib/api";
+import { api, sequenceInitialOrder, toApiAnswer, type AnswerValue, type PracticeCheckResult, type Question } from "@/lib/api";
+import SequenceOrder from "@/components/SequenceOrder";
 
 const QUESTION_COUNT = 3;
 
@@ -27,7 +28,11 @@ export default function Practice() {
     setScore(0);
     setError(null);
     api<Question[]>(`/practice/questions?limit=${QUESTION_COUNT}`)
-      .then(setQuestions)
+      .then((loadedQuestions) => {
+        setQuestions(loadedQuestions);
+        const firstQuestion = loadedQuestions[0];
+        setSelected(firstQuestion?.type === "sequence" ? sequenceInitialOrder(firstQuestion) : undefined);
+      })
       .catch((err) => setError(err instanceof Error ? err.message : "Не удалось загрузить вопросы"));
   }
 
@@ -54,8 +59,10 @@ export default function Practice() {
   }
 
   function next() {
-    setIdx((v) => v + 1);
-    setSelected(undefined);
+    const nextIndex = idx + 1;
+    const nextQuestion = questions?.[nextIndex];
+    setIdx(nextIndex);
+    setSelected(nextQuestion?.type === "sequence" ? sequenceInitialOrder(nextQuestion) : undefined);
     setResult(null);
   }
 
@@ -110,6 +117,15 @@ export default function Practice() {
                 {text}
               </button>
             ))}
+
+          {q.type === "sequence" && q.options && (
+            <SequenceOrder
+              options={q.options}
+              order={Array.isArray(selected) ? selected : sequenceInitialOrder(q)}
+              disabled={Boolean(result)}
+              onChange={setSelected}
+            />
+          )}
 
           {error && <p className="text-[#ff4d3d] text-xs font-semibold mt-1.5">{error}</p>}
 

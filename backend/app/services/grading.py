@@ -27,5 +27,9 @@ def grade_question(question: Question, answer: dict | None) -> tuple[bool, int]:
             is_correct = isclose(submitted, expected, abs_tol=tolerance)
         except (TypeError, ValueError):
             is_correct = False
+    elif question.type == QuestionType.sequence:
+        submitted = answer.get("order") or []
+        expected = correct.get("order") or []
+        is_correct = submitted == expected
 
     return is_correct, question.points if is_correct else 0

@@ -180,6 +180,7 @@ const typeLabels: Record<string, string> = {
   multiple_choice: "Несколько ответов",
   short_text: "Короткий текст",
   number: "Число",
+  sequence: "Последовательность",
 };
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
@@ -434,6 +435,12 @@ export default function AdminClient() {
         return;
       }
       correctAnswer = { options: validAnswers };
+    } else if (questionType === "sequence") {
+      if (options.length < 2 || options.some((item) => !item)) {
+        setError("Добавьте минимум два элемента последовательности");
+        return;
+      }
+      correctAnswer = { order: options.map((_, index) => index) };
     } else if (questionType === "short_text") {
       if (!correctText.trim()) {
         setError("Укажите правильный текстовый ответ");
@@ -837,20 +844,29 @@ export default function AdminClient() {
                   </select>
                 </Field>
 
-                {(questionType === "single_choice" || questionType === "multiple_choice") && (
+                {(questionType === "single_choice" || questionType === "multiple_choice" || questionType === "sequence") && (
                   <fieldset className="grid gap-2">
-                    <legend className="mb-1 text-[12px] font-bold">Варианты ответа <span className="font-medium text-[#858990]">· отметьте правильные</span></legend>
+                    <legend className="mb-1 text-[12px] font-bold">
+                      {questionType === "sequence" ? "Элементы в правильном порядке" : "Варианты ответа"}
+                      <span className="font-medium text-[#858990]">
+                        {questionType === "sequence" ? " · ученику они будут показаны перемешанными" : " · отметьте правильные"}
+                      </span>
+                    </legend>
                     {optionValues.map((option, index) => {
                       const checked = correctOptions.includes(index);
                       return (
                         <div key={index} className="grid grid-cols-[32px_1fr_32px] items-center gap-2">
-                          <input
-                            type={questionType === "single_choice" ? "radio" : "checkbox"}
-                            name="correct_option"
-                            checked={checked}
-                            onChange={() => setCorrectOptions((current) => questionType === "single_choice" ? [index] : checked ? current.filter((item) => item !== index) : [...current, index])}
-                            className="h-4 w-4 justify-self-center accent-[#16a34a]"
-                          />
+                          {questionType === "sequence" ? (
+                            <span className="grid h-6 w-6 place-items-center justify-self-center rounded-full bg-[#eef7ec] text-[11px] font-extrabold text-[#15803d]">{index + 1}</span>
+                          ) : (
+                            <input
+                              type={questionType === "single_choice" ? "radio" : "checkbox"}
+                              name="correct_option"
+                              checked={checked}
+                              onChange={() => setCorrectOptions((current) => questionType === "single_choice" ? [index] : checked ? current.filter((item) => item !== index) : [...current, index])}
+                              className="h-4 w-4 justify-self-center accent-[#16a34a]"
+                            />
+                          )}
                           <input
                             value={option}
                             onChange={(event) => setOptionValues((current) => current.map((item, itemIndex) => itemIndex === index ? event.target.value : item))}

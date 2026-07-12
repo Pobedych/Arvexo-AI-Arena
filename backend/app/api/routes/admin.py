@@ -77,6 +77,16 @@ def _question_type(value: str) -> QuestionType:
         raise HTTPException(status_code=400, detail="Invalid question type") from exc
 
 
+def _validate_question_configuration(question_type: QuestionType, options: list[str] | None, correct_answer: dict) -> None:
+    if question_type != QuestionType.sequence:
+        return
+    if not options or len(options) < 2 or any(not option.strip() for option in options):
+        raise HTTPException(status_code=400, detail="Sequence needs at least two non-empty elements")
+    expected_order = correct_answer.get("order")
+    if expected_order != list(range(len(options))):
+        raise HTTPException(status_code=400, detail="Sequence answer must contain every element in the configured order")
+
+
 def _tournament_status(value: str) -> TournamentStatus:
     try:
         return TournamentStatus(value)
@@ -377,11 +387,13 @@ def list_questions(_: ArenaUser = Depends(get_current_admin), db: Session = Depe
 def create_question(payload: QuestionCreateIn, _: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
     if payload.lesson_id and not db.get(Lesson, payload.lesson_id):
         raise HTTPException(status_code=404, detail="Lesson not found")
+    question_type = _question_type(payload.type)
+    _validate_question_configuration(question_type, payload.options, payload.correct_answer)
     question = Question(
         lesson_id=payload.lesson_id,
         title=payload.title,
         prompt=payload.prompt,
-        type=_question_type(payload.type),
+        type=question_type,
         options=payload.options,
         correct_answer=payload.correct_answer,
         tolerance=payload.tolerance,
@@ -413,6 +425,10 @@ def update_question(question_id: UUID, payload: QuestionUpdateIn, _: ArenaUser =
         data["type"] = _question_type(data["type"])
     if "status" in data:
         data["status"] = _content_status(data["status"])
+    next_type = data.get("type", question.type)
+    next_options = data.get("options", question.options)
+    next_correct_answer = data.get("correct_answer", question.correct_answer)
+    _validate_question_configuration(next_type, next_options, next_correct_answer)
     old_lesson_id = question.lesson_id
     if CONTENT_AFFECTING_QUESTION_FIELDS & data.keys():
         _reset_lesson_progress(db, old_lesson_id)

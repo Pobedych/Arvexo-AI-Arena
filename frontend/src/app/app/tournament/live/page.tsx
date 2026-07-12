@@ -2,7 +2,8 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { api, type Attempt, type Question, type Tournament } from "@/lib/api";
+import { api, sequenceInitialOrder, type Attempt, type Question, type Tournament } from "@/lib/api";
+import SequenceOrder from "@/components/SequenceOrder";
 
 type AnswerValue = number | number[] | string;
 
@@ -47,6 +48,11 @@ function TournamentLive() {
         await api<{ attempt_id: string }>(`/tournaments/${selected.id}/start`, { method: "POST" });
         const attemptData = await api<Attempt>(`/tournaments/${selected.id}/attempt`);
         setAttempt(attemptData);
+        setAnswers(Object.fromEntries(
+          attemptData.questions
+            .filter((question) => question.type === "sequence")
+            .map((question) => [question.id, sequenceInitialOrder(question)]),
+        ));
       } catch (err) {
         setError(err instanceof Error ? err.message : "Не удалось открыть попытку");
       } finally {
@@ -176,6 +182,15 @@ function AnswerControl({ question, value, onChange }: { question: Question; valu
       );
     });
   }
+  if (question.type === "sequence" && question.options) {
+    return (
+      <SequenceOrder
+        options={question.options}
+        order={Array.isArray(value) ? value : sequenceInitialOrder(question)}
+        onChange={onChange}
+      />
+    );
+  }
   return (
     <input
       value={typeof value === "string" ? value : ""}
@@ -207,5 +222,6 @@ function toApiAnswer(question: Question, value: AnswerValue | undefined) {
   if (question.type === "single_choice") return { option: value };
   if (question.type === "multiple_choice") return { options: Array.isArray(value) ? value : [] };
   if (question.type === "number") return { number: Number(value) };
+  if (question.type === "sequence") return { order: Array.isArray(value) ? value : [] };
   return { text: String(value ?? "") };
 }

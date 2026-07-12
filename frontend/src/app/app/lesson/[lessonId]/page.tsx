@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { api, toApiAnswer, type AnswerValue, type Lesson, type Question } from "@/lib/api";
+import { api, sequenceInitialOrder, toApiAnswer, type AnswerValue, type Lesson, type Question } from "@/lib/api";
 import MarkdownContent from "@/components/MarkdownContent";
+import SequenceOrder from "@/components/SequenceOrder";
 
 type SubmitResult = {
   score: number;
@@ -24,7 +25,14 @@ export default function LessonPage() {
 
   useEffect(() => {
     api<Lesson>(`/lessons/${params.lessonId}`)
-      .then(setLesson)
+      .then((lessonData) => {
+        setLesson(lessonData);
+        setAnswers(Object.fromEntries(
+          lessonData.questions
+            .filter((question) => question.type === "sequence")
+            .map((question) => [question.id, sequenceInitialOrder(question)]),
+        ));
+      })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, [params.lessonId]);
@@ -183,6 +191,14 @@ function QuestionBlock({
           </Choice>
         );
       })}
+      {question.type === "sequence" && question.options && (
+        <SequenceOrder
+          options={question.options}
+          order={Array.isArray(value) ? value : sequenceInitialOrder(question)}
+          disabled={disabled}
+          onChange={onChange}
+        />
+      )}
       {["short_text", "number"].includes(question.type) && (
         <input
           disabled={disabled}
