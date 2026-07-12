@@ -17,7 +17,11 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.execute("ALTER TYPE questiontype ADD VALUE IF NOT EXISTS 'sequence'")
+    bind = op.get_bind()
+    if bind.dialect.name == "postgresql":
+        op.execute("ALTER TYPE questiontype ADD VALUE IF NOT EXISTS 'sequence'")
+    # SQLite stores SQLAlchemy enums as text in this schema, so the new value
+    # does not require a table or constraint change.
 
 
 def downgrade() -> None:
