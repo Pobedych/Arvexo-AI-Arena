@@ -95,28 +95,31 @@ export default function Practice() {
 
           {q.type === "single_choice" &&
             q.options?.map((text, optionIndex) => (
-              <div
+              <button
+                type="button"
                 key={text}
                 onClick={() => !result && setSelected(optionIndex)}
-                className="py-3.5 px-4 rounded-[13px] cursor-pointer text-[13.5px] font-medium mb-2.5 border-[1.5px] transition-colors"
+                disabled={Boolean(result)}
+                aria-pressed={selected === optionIndex}
+                className="block w-full text-left py-3.5 px-4 rounded-[13px] cursor-pointer text-[13.5px] font-medium mb-2.5 border-[1.5px] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16a34a] disabled:cursor-default"
                 style={{
                   borderColor: selected === optionIndex ? "#16a34a" : "rgba(21,23,28,.08)",
                   background: selected === optionIndex ? "rgba(22,163,74,.06)" : "#f6f4ee",
                 }}
               >
                 {text}
-              </div>
+              </button>
             ))}
 
           {error && <p className="text-[#ff4d3d] text-xs font-semibold mt-1.5">{error}</p>}
 
           {result && result.is_correct && (
-            <div className="rounded-[14px] bg-[rgba(22,163,74,.08)] border border-[rgba(22,163,74,.2)] py-3.5 px-4 mt-1.5">
+            <div role="status" aria-live="polite" className="rounded-[14px] bg-[rgba(22,163,74,.08)] border border-[rgba(22,163,74,.2)] py-3.5 px-4 mt-1.5">
               <strong className="text-[12.5px] text-[#16a34a]">✓ Верно.</strong> <span className="text-[12.5px]">{result.explanation}</span>
             </div>
           )}
           {result && !result.is_correct && (
-            <div className="rounded-[14px] bg-[rgba(255,77,61,.08)] border border-[rgba(255,77,61,.2)] py-3.5 px-4 mt-1.5">
+            <div role="status" aria-live="polite" className="rounded-[14px] bg-[rgba(255,77,61,.08)] border border-[rgba(255,77,61,.2)] py-3.5 px-4 mt-1.5">
               <strong className="text-[12.5px] text-[#ff4d3d]">✗ Не совсем.</strong> <span className="text-[12.5px]">{result.explanation}</span>
             </div>
           )}

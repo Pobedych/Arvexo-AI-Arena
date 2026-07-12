@@ -78,11 +78,20 @@ export default function LessonPage() {
         {lesson.title}
       </h1>
 
-      <div className="rounded-[24px] bg-white border border-[rgba(21,23,28,.07)] py-7.5 px-8 mb-3.5 shadow-[0_10px_30px_-24px_rgba(21,23,28,.3)]">
+      <nav aria-label="Навигация по уроку" className="flex gap-2 mb-3.5 flex-wrap">
+        <a href="#lesson-theory" className="inline-flex items-center h-9 px-4 rounded-full bg-[#15171c] text-white text-xs font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16a34a]">
+          Материал
+        </a>
+        <a href="#lesson-questions" className="inline-flex items-center h-9 px-4 rounded-full bg-white border border-[rgba(21,23,28,.1)] text-xs font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16a34a]">
+          Проверка · заданий: {lesson.questions.length}
+        </a>
+      </nav>
+
+      <div id="lesson-theory" className="scroll-mt-24 rounded-[24px] bg-white border border-[rgba(21,23,28,.07)] py-7.5 px-8 mb-3.5 shadow-[0_10px_30px_-24px_rgba(21,23,28,.3)]">
         <MarkdownContent content={lesson.theory} />
       </div>
 
-      <div className="rounded-[24px] bg-white border border-[rgba(22,163,74,.18)] p-6.5 shadow-[0_10px_30px_-24px_rgba(22,163,74,.18)]">
+      <div id="lesson-questions" className="scroll-mt-24 rounded-[24px] bg-white border border-[rgba(22,163,74,.18)] p-6.5 shadow-[0_10px_30px_-24px_rgba(22,163,74,.18)]">
         <p className="text-[#16a34a] text-[11px] font-bold tracking-[.12em] uppercase mb-3.5">Проверь себя</p>
         <div className="grid gap-5">
           {lesson.questions.map((question, index) => (

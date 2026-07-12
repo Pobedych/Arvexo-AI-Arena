@@ -6,9 +6,9 @@ import { useEffect, useMemo, useState } from "react";
 import { api, type ApiUser, type Tournament, type Track } from "@/lib/api";
 
 const settings = [
-  { label: "Напоминания об уроках", on: true },
-  { label: "Показывать профиль работодателям", on: false },
-  { label: "Email-уведомления о турнирах", on: false },
+  { id: "lesson-reminders", label: "Напоминания об уроках", on: true },
+  { id: "employer-profile", label: "Показывать профиль работодателям", on: false },
+  { id: "tournament-email", label: "Email-уведомления о турнирах", on: false },
 ];
 
 export default function Profile() {
@@ -78,12 +78,15 @@ export default function Profile() {
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
-        <Stat value={`Уровень ${user.level}`} label={`${user.xp} XP`} />
+        <Stat value={`Уровень ${user.level}`} label={`${user.xp} XP · за завершённые уроки`} />
         <div className="rounded-2xl bg-[#15171c] text-white p-4">
           <strong className="font-[family-name:var(--font-display)] text-2xl block text-[#ff9d3d]">🔥 {user.current_streak}</strong>
           <span className="text-[11.5px] text-white/55">дней подряд · рекорд {user.longest_streak}</span>
         </div>
-        <Stat value={user.arena_score !== null ? `${user.arena_score}%` : "—"} label="Arena Score" />
+        <Stat
+          value={user.arena_score !== null ? `${user.arena_score}%` : "—"}
+          label={user.arena_score !== null ? "Arena Score · средний результат турниров" : "Заверши турнир, чтобы получить Arena Score"}
+        />
         <Stat value={`${finishedTournaments}`} label="турниров завершено" />
       </div>
 
@@ -91,20 +94,34 @@ export default function Profile() {
         <div className="rounded-[20px] bg-white border border-[rgba(21,23,28,.07)] p-5">
           <p className="text-[#6b6f76] text-[10.5px] font-bold tracking-[.1em] uppercase mb-3.5">Текущий трек</p>
           <h3 className="text-[16px] font-extrabold mb-1">{track.title}</h3>
-          <p className="text-[12.5px] text-[#6b6f76] leading-relaxed mb-3">{track.description}</p>
+          <p className="text-[12.5px] text-[#6b6f76] leading-relaxed mb-3">
+            {track.total_lessons} уроков: от основ AI до ответственного использования технологий
+          </p>
           <div className="h-2 rounded-full bg-[rgba(21,23,28,.1)]">
             <span className="block h-full rounded-full bg-[#16a34a]" style={{ width: `${track.progress_percent}%` }} />
           </div>
         </div>
         <div className="rounded-[20px] bg-white border border-[rgba(21,23,28,.07)] p-5">
-          <p className="text-[#6b6f76] text-[10.5px] font-bold tracking-[.1em] uppercase mb-3.5">Настройки</p>
+          <div className="flex items-center justify-between gap-3 mb-3.5">
+            <p className="text-[#6b6f76] text-[10.5px] font-bold tracking-[.1em] uppercase">Настройки</p>
+            <span className="text-[10px] font-bold text-[#6b6f76] bg-[#f6f4ee] rounded-full px-2 py-1">Скоро</span>
+          </div>
           <div className="grid gap-2.5">
             {settings.map((setting) => (
-              <div key={setting.label} className="flex justify-between items-center gap-3">
-                <span className="text-[12.5px]">{setting.label}</span>
-                <span className="w-9 h-5 rounded-full relative inline-block shrink-0" style={{ background: setting.on ? "#16a34a" : "rgba(21,23,28,.12)" }}>
-                  <span className="absolute top-0.5 w-4 h-4 rounded-full bg-white" style={setting.on ? { right: "2px" } : { left: "2px" }} />
-                </span>
+              <div key={setting.id} className="flex justify-between items-center gap-3">
+                <span id={`${setting.id}-label`} className="text-[12.5px]">{setting.label}</span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={setting.on}
+                  aria-labelledby={`${setting.id}-label`}
+                  disabled
+                  title="Настройка пока недоступна"
+                  className="w-9 h-5 rounded-full relative inline-block shrink-0 disabled:cursor-not-allowed disabled:opacity-65"
+                  style={{ background: setting.on ? "#16a34a" : "rgba(21,23,28,.12)" }}
+                >
+                  <span aria-hidden="true" className="absolute top-0.5 w-4 h-4 rounded-full bg-white" style={setting.on ? { right: "2px" } : { left: "2px" }} />
+                </button>
               </div>
             ))}
           </div>

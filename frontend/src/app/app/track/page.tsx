@@ -66,7 +66,9 @@ export default function TrackPage() {
       <Card className="rounded-[20px] p-5 mb-5.5">
         <p className="text-[#16a34a] text-[10.5px] font-bold tracking-[.1em] uppercase mb-3">Прогресс</p>
         <strong className="font-[family-name:var(--font-display)] text-[42px] block">{track.progress_percent}%</strong>
-        <p className="text-xs text-[#6b6f76] leading-relaxed">{track.description}</p>
+        <p className="text-xs text-[#6b6f76] leading-relaxed">
+          {track.total_lessons} уроков: от основ AI до ответственного использования технологий
+        </p>
       </Card>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5.5">

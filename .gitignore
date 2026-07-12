@@ -1,4 +1,28 @@
-.claude/launch.json
-.audit
-.claude
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Editor and agent state
+.claude/
+.audit/
+.playwright-mcp/
+CLAUDE.md
+
+# Local databases
 arena_dev.db
+*.db-journal
+
+# Generated audit evidence
+audit/
+
+# Remotion dependencies and generated output
+remotion-video/node_modules/
+remotion-video/build/
+remotion-video/out/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+remotion-video
