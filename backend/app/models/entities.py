@@ -40,6 +40,8 @@ class QuestionType(str, enum.Enum):
     short_text = "short_text"
     number = "number"
     sequence = "sequence"
+    matching = "matching"
+    code_text = "code_text"
 
 
 class TournamentStatus(str, enum.Enum):
@@ -148,6 +150,7 @@ class Question(TimestampMixin, Base):
     prompt: Mapped[str] = mapped_column(Text, nullable=False)
     type: Mapped[QuestionType] = mapped_column(Enum(QuestionType), nullable=False)
     options: Mapped[list[str] | None] = mapped_column(JSON)
+    configuration: Mapped[dict | None] = mapped_column(JSON)
     correct_answer: Mapped[dict] = mapped_column(JSON, nullable=False)
     tolerance: Mapped[float | None] = mapped_column(Float)
     points: Mapped[int] = mapped_column(Integer, default=1, nullable=False)

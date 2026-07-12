@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { api, sequenceInitialOrder, toApiAnswer, type AnswerValue, type PracticeCheckResult, type Question } from "@/lib/api";
+import { api, matchingInitialValue, sequenceInitialOrder, toApiAnswer, type AnswerValue, type PracticeCheckResult, type Question } from "@/lib/api";
+import MatchingPairs from "@/components/MatchingPairs";
 import SequenceOrder from "@/components/SequenceOrder";
 
 const QUESTION_COUNT = 3;
@@ -31,7 +32,7 @@ export default function Practice() {
       .then((loadedQuestions) => {
         setQuestions(loadedQuestions);
         const firstQuestion = loadedQuestions[0];
-        setSelected(firstQuestion?.type === "sequence" ? sequenceInitialOrder(firstQuestion) : undefined);
+        setSelected(initialInteractiveValue(firstQuestion));
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Не удалось загрузить вопросы"));
   }
@@ -62,7 +63,7 @@ export default function Practice() {
     const nextIndex = idx + 1;
     const nextQuestion = questions?.[nextIndex];
     setIdx(nextIndex);
-    setSelected(nextQuestion?.type === "sequence" ? sequenceInitialOrder(nextQuestion) : undefined);
+    setSelected(initialInteractiveValue(nextQuestion));
     setResult(null);
   }
 
@@ -127,6 +128,28 @@ export default function Practice() {
             />
           )}
 
+          {q.type === "matching" && q.options && (
+            <MatchingPairs
+              question={q}
+              value={Array.isArray(selected) ? selected : matchingInitialValue(q)}
+              disabled={Boolean(result)}
+              onChange={setSelected}
+            />
+          )}
+
+          {q.type === "code_text" && (
+            <textarea
+              value={typeof selected === "string" ? selected : ""}
+              onChange={(event) => setSelected(event.target.value)}
+              disabled={Boolean(result)}
+              spellCheck={false}
+              rows={9}
+              className="w-full rounded-[13px] bg-[#15171c] border border-white/10 px-4 py-3 font-mono text-[13px] leading-relaxed text-white outline-none focus:border-[#16a34a]"
+              placeholder="Напишите решение здесь…"
+              aria-label="Код решения"
+            />
+          )}
+
           {error && <p className="text-[#ff4d3d] text-xs font-semibold mt-1.5">{error}</p>}
 
           {result && result.is_correct && (
@@ -141,7 +164,7 @@ export default function Practice() {
           )}
 
           <div className="flex gap-2.5 mt-4.5 flex-wrap">
-            {selected !== undefined && !result && (
+            {hasPracticeAnswer(q, selected) && !result && (
               <button
                 onClick={check}
                 disabled={checking}
@@ -186,4 +209,16 @@ export default function Practice() {
       )}
     </div>
   );
+}
+
+function initialInteractiveValue(question: Question | undefined): AnswerValue | undefined {
+  if (question?.type === "sequence") return sequenceInitialOrder(question);
+  if (question?.type === "matching") return matchingInitialValue(question);
+  return undefined;
+}
+
+function hasPracticeAnswer(question: Question, value: AnswerValue | undefined) {
+  if (question.type === "matching") return Array.isArray(value) && value.length === (question.options?.length ?? 0) && value.every((item) => item >= 0);
+  if (question.type === "sequence") return Array.isArray(value) && value.length === (question.options?.length ?? 0);
+  return value !== undefined && value !== "";
 }

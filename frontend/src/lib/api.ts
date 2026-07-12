@@ -51,8 +51,9 @@ export type ActivityDay = {
 export type Question = {
   id: string;
   prompt: string;
-  type: "single_choice" | "multiple_choice" | "short_text" | "number" | "sequence" | string;
+  type: "single_choice" | "multiple_choice" | "short_text" | "number" | "sequence" | "matching" | "code_text" | string;
   options: string[] | null;
+  configuration?: Record<string, unknown> | null;
   points: number;
   explanation?: string | null;
   correct_answer?: Record<string, unknown> | null;
@@ -206,13 +207,18 @@ export function toApiAnswer(question: Question, value: AnswerValue | undefined) 
   if (question.type === "multiple_choice") return { options: Array.isArray(value) ? value : [] };
   if (question.type === "number") return { number: Number(value) };
   if (question.type === "sequence") return { order: Array.isArray(value) ? value : [] };
+  if (question.type === "matching") return { matches: Array.isArray(value) ? value : [] };
+  if (question.type === "code_text") return { code: String(value ?? "") };
   return { text: String(value ?? "") };
 }
 
 export function sequenceInitialOrder(question: Question): number[] {
-  const length = question.options?.length ?? 0;
+  return deterministicShuffledIndices(question.id, question.options?.length ?? 0);
+}
+
+export function deterministicShuffledIndices(id: string, length: number): number[] {
   const order = Array.from({ length }, (_, index) => index);
-  const hash = Array.from(question.id).reduce((value, character) => ((value * 31) + character.charCodeAt(0)) >>> 0, 2166136261);
+  const hash = Array.from(id).reduce((value, character) => ((value * 31) + character.charCodeAt(0)) >>> 0, 2166136261);
 
   for (let index = order.length - 1; index > 0; index -= 1) {
     const swapIndex = (hash + index * 17) % (index + 1);
@@ -223,4 +229,8 @@ export function sequenceInitialOrder(question: Question): number[] {
     order.push(order.shift() as number);
   }
   return order;
+}
+
+export function matchingInitialValue(question: Question): number[] {
+  return Array.from({ length: question.options?.length ?? 0 }, () => -1);
 }

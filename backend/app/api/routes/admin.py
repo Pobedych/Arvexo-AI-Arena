@@ -77,14 +77,25 @@ def _question_type(value: str) -> QuestionType:
         raise HTTPException(status_code=400, detail="Invalid question type") from exc
 
 
-def _validate_question_configuration(question_type: QuestionType, options: list[str] | None, correct_answer: dict) -> None:
-    if question_type != QuestionType.sequence:
-        return
-    if not options or len(options) < 2 or any(not option.strip() for option in options):
-        raise HTTPException(status_code=400, detail="Sequence needs at least two non-empty elements")
-    expected_order = correct_answer.get("order")
-    if expected_order != list(range(len(options))):
-        raise HTTPException(status_code=400, detail="Sequence answer must contain every element in the configured order")
+def _validate_question_configuration(question_type: QuestionType, options: list[str] | None, configuration: dict | None, correct_answer: dict) -> None:
+    if question_type == QuestionType.sequence:
+        if not options or len(options) < 2 or any(not option.strip() for option in options):
+            raise HTTPException(status_code=400, detail="Sequence needs at least two non-empty elements")
+        expected_order = correct_answer.get("order")
+        if expected_order != list(range(len(options))):
+            raise HTTPException(status_code=400, detail="Sequence answer must contain every element in the configured order")
+    elif question_type == QuestionType.matching:
+        right = (configuration or {}).get("right") or []
+        matches = correct_answer.get("matches") or []
+        if not options or len(options) < 2 or len(right) != len(options) or any(not item.strip() for item in [*options, *right]):
+            raise HTTPException(status_code=400, detail="Matching needs at least two complete pairs")
+        if matches != list(range(len(options))):
+            raise HTTPException(status_code=400, detail="Matching answer must contain every configured pair")
+    elif question_type == QuestionType.code_text:
+        code = correct_answer.get("code")
+        accepted_codes = correct_answer.get("accepted_codes") or []
+        if not str(code or "").strip() and not any(str(item or "").strip() for item in accepted_codes):
+            raise HTTPException(status_code=400, detail="Code question needs an expected solution")
 
 
 def _tournament_status(value: str) -> TournamentStatus:
@@ -116,6 +127,7 @@ def _question_dict(question: Question) -> dict:
         "prompt": question.prompt,
         "type": question.type.value,
         "options": question.options,
+        "configuration": question.configuration,
         "correct_answer": question.correct_answer,
         "tolerance": question.tolerance,
         "points": question.points,
@@ -388,13 +400,14 @@ def create_question(payload: QuestionCreateIn, _: ArenaUser = Depends(get_curren
     if payload.lesson_id and not db.get(Lesson, payload.lesson_id):
         raise HTTPException(status_code=404, detail="Lesson not found")
     question_type = _question_type(payload.type)
-    _validate_question_configuration(question_type, payload.options, payload.correct_answer)
+    _validate_question_configuration(question_type, payload.options, payload.configuration, payload.correct_answer)
     question = Question(
         lesson_id=payload.lesson_id,
         title=payload.title,
         prompt=payload.prompt,
         type=question_type,
         options=payload.options,
+        configuration=payload.configuration,
         correct_answer=payload.correct_answer,
         tolerance=payload.tolerance,
         points=payload.points,
@@ -410,7 +423,7 @@ def create_question(payload: QuestionCreateIn, _: ArenaUser = Depends(get_curren
     return _question_dict(question)
 
 
-CONTENT_AFFECTING_QUESTION_FIELDS = {"lesson_id", "type", "options", "correct_answer", "tolerance", "points", "status"}
+CONTENT_AFFECTING_QUESTION_FIELDS = {"lesson_id", "type", "options", "configuration", "correct_answer", "tolerance", "points", "status"}
 
 
 @router.patch("/questions/{question_id}")
@@ -427,8 +440,9 @@ def update_question(question_id: UUID, payload: QuestionUpdateIn, _: ArenaUser =
         data["status"] = _content_status(data["status"])
     next_type = data.get("type", question.type)
     next_options = data.get("options", question.options)
+    next_configuration = data.get("configuration", question.configuration)
     next_correct_answer = data.get("correct_answer", question.correct_answer)
-    _validate_question_configuration(next_type, next_options, next_correct_answer)
+    _validate_question_configuration(next_type, next_options, next_configuration, next_correct_answer)
     old_lesson_id = question.lesson_id
     if CONTENT_AFFECTING_QUESTION_FIELDS & data.keys():
         _reset_lesson_progress(db, old_lesson_id)

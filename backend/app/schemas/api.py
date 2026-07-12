@@ -52,6 +52,7 @@ class QuestionOut(BaseModel):
     prompt: str
     type: str
     options: list[str] | None
+    configuration: dict[str, Any] | None = None
     points: int
     explanation: str | None = None
     correct_answer: dict[str, Any] | None = None
@@ -142,6 +143,7 @@ class QuestionCreateIn(BaseModel):
     prompt: str
     type: str = "single_choice"
     options: list[str] | None = None
+    configuration: dict[str, Any] | None = None
     correct_answer: dict[str, Any]
     tolerance: float | None = None
     points: int = 1
@@ -157,6 +159,7 @@ class QuestionUpdateIn(BaseModel):
     prompt: str | None = None
     type: str | None = None
     options: list[str] | None = None
+    configuration: dict[str, Any] | None = None
     correct_answer: dict[str, Any] | None = None
     tolerance: float | None = None
     points: int | None = None

@@ -43,6 +43,7 @@ type Question = {
   prompt: string;
   type: string;
   options: string[] | null;
+  configuration: Record<string, unknown> | null;
   correct_answer: Record<string, unknown>;
   points: number;
   explanation: string;
@@ -181,6 +182,8 @@ const typeLabels: Record<string, string> = {
   short_text: "Короткий текст",
   number: "Число",
   sequence: "Последовательность",
+  matching: "Сопоставление",
+  code_text: "Код — свободный ввод",
 };
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
@@ -220,6 +223,7 @@ export default function AdminClient() {
   const [optionValues, setOptionValues] = useState(["", "", "", ""]);
   const [correctOptions, setCorrectOptions] = useState<number[]>([0]);
   const [correctText, setCorrectText] = useState("");
+  const [matchingRightValues, setMatchingRightValues] = useState(["", "", "", ""]);
   const [numberTolerance, setNumberTolerance] = useState("0");
   const [tournamentQuestionSearch, setTournamentQuestionSearch] = useState("");
   const [selectedQuestionIds, setSelectedQuestionIds] = useState<string[]>([]);
@@ -441,6 +445,19 @@ export default function AdminClient() {
         return;
       }
       correctAnswer = { order: options.map((_, index) => index) };
+    } else if (questionType === "matching") {
+      const right = matchingRightValues.slice(0, options.length).map((item) => item.trim());
+      if (options.length < 2 || options.some((item) => !item) || right.length !== options.length || right.some((item) => !item)) {
+        setError("Заполните минимум две пары для сопоставления");
+        return;
+      }
+      correctAnswer = { matches: options.map((_, index) => index) };
+    } else if (questionType === "code_text") {
+      if (!correctText.trim()) {
+        setError("Добавьте эталонное решение");
+        return;
+      }
+      correctAnswer = { code: correctText };
     } else if (questionType === "short_text") {
       if (!correctText.trim()) {
         setError("Укажите правильный текстовый ответ");
@@ -466,6 +483,7 @@ export default function AdminClient() {
           prompt: form.get("prompt"),
           type: questionType,
           options: options.length ? options : null,
+          configuration: questionType === "matching" ? { right: matchingRightValues.slice(0, options.length).map((item) => item.trim()) } : null,
           correct_answer: correctAnswer,
           tolerance: questionType === "number" ? Number(numberTolerance || 0) : null,
           points: Number(form.get("points") || 1),
@@ -480,6 +498,7 @@ export default function AdminClient() {
       setOptionValues(["", "", "", ""]);
       setCorrectOptions([0]);
       setCorrectText("");
+      setMatchingRightValues(["", "", "", ""]);
       setNumberTolerance("0");
       setNotice("Задание создано");
       await loadAll();
@@ -837,6 +856,7 @@ export default function AdminClient() {
                       setQuestionType(event.target.value);
                       setCorrectOptions([0]);
                       setCorrectText("");
+                      setMatchingRightValues(["", "", "", ""]);
                     }}
                     className={inputClass()}
                   >
@@ -890,9 +910,65 @@ export default function AdminClient() {
                   </fieldset>
                 )}
 
+                {questionType === "matching" && (
+                  <fieldset className="grid gap-2">
+                    <legend className="mb-1 text-[12px] font-bold">
+                      Пары для сопоставления <span className="font-medium text-[#858990]">· слева термин, справа правильное соответствие</span>
+                    </legend>
+                    {optionValues.map((left, index) => (
+                      <div key={index} className="grid grid-cols-[1fr_28px_1fr_32px] items-center gap-2">
+                        <input
+                          value={left}
+                          onChange={(event) => setOptionValues((current) => current.map((item, itemIndex) => itemIndex === index ? event.target.value : item))}
+                          placeholder={`Термин ${index + 1}`}
+                          className={inputClass()}
+                        />
+                        <span aria-hidden="true" className="text-center text-[#858990]">↔</span>
+                        <input
+                          value={matchingRightValues[index] ?? ""}
+                          onChange={(event) => setMatchingRightValues((current) => current.map((item, itemIndex) => itemIndex === index ? event.target.value : item))}
+                          placeholder={`Определение ${index + 1}`}
+                          className={inputClass()}
+                        />
+                        <button
+                          type="button"
+                          title="Удалить пару"
+                          disabled={optionValues.length <= 2}
+                          onClick={() => {
+                            setOptionValues((current) => current.filter((_, itemIndex) => itemIndex !== index));
+                            setMatchingRightValues((current) => current.filter((_, itemIndex) => itemIndex !== index));
+                          }}
+                          className="h-8 w-8 text-[18px] text-[#858990] disabled:opacity-25"
+                        >×</button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOptionValues((current) => [...current, ""]);
+                        setMatchingRightValues((current) => [...current, ""]);
+                      }}
+                      className="mt-1 w-fit text-[12px] font-bold text-[#15803d]"
+                    >+ Добавить пару</button>
+                  </fieldset>
+                )}
+
                 {questionType === "short_text" && (
                   <Field label="Правильный ответ" hint="регистр не учитывается">
                     <input value={correctText} onChange={(event) => setCorrectText(event.target.value)} placeholder="Введите эталонный ответ" className={inputClass()} />
+                  </Field>
+                )}
+
+                {questionType === "code_text" && (
+                  <Field label="Эталонное решение" hint="код не запускается; сравнивается текст решения">
+                    <textarea
+                      value={correctText}
+                      onChange={(event) => setCorrectText(event.target.value)}
+                      rows={10}
+                      spellCheck={false}
+                      placeholder="def solve():\n    ..."
+                      className={inputClass("resize-y font-mono")}
+                    />
                   </Field>
                 )}
 

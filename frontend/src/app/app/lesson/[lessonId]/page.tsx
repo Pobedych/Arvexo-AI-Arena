@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { api, sequenceInitialOrder, toApiAnswer, type AnswerValue, type Lesson, type Question } from "@/lib/api";
+import { api, matchingInitialValue, sequenceInitialOrder, toApiAnswer, type AnswerValue, type Lesson, type Question } from "@/lib/api";
 import MarkdownContent from "@/components/MarkdownContent";
+import MatchingPairs from "@/components/MatchingPairs";
 import SequenceOrder from "@/components/SequenceOrder";
 
 type SubmitResult = {
@@ -29,15 +30,15 @@ export default function LessonPage() {
         setLesson(lessonData);
         setAnswers(Object.fromEntries(
           lessonData.questions
-            .filter((question) => question.type === "sequence")
-            .map((question) => [question.id, sequenceInitialOrder(question)]),
+            .filter((question) => question.type === "sequence" || question.type === "matching")
+            .map((question) => [question.id, question.type === "sequence" ? sequenceInitialOrder(question) : matchingInitialValue(question)]),
         ));
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, [params.lessonId]);
 
-  const canSubmit = useMemo(() => lesson?.questions.every((question) => answers[question.id] !== undefined && answers[question.id] !== "") ?? false, [lesson, answers]);
+  const canSubmit = useMemo(() => lesson?.questions.every((question) => hasAnswer(question, answers[question.id])) ?? false, [lesson, answers]);
 
   async function submit() {
     if (!lesson) return;
@@ -199,6 +200,14 @@ function QuestionBlock({
           onChange={onChange}
         />
       )}
+      {question.type === "matching" && question.options && (
+        <MatchingPairs
+          question={question}
+          value={Array.isArray(value) ? value : matchingInitialValue(question)}
+          disabled={disabled}
+          onChange={onChange}
+        />
+      )}
       {["short_text", "number"].includes(question.type) && (
         <input
           disabled={disabled}
@@ -209,6 +218,18 @@ function QuestionBlock({
           placeholder={question.type === "number" ? "Введите число" : "Введите ответ"}
         />
       )}
+      {question.type === "code_text" && (
+        <textarea
+          disabled={disabled}
+          value={typeof value === "string" ? value : ""}
+          onChange={(event) => onChange(event.target.value)}
+          spellCheck={false}
+          rows={10}
+          className="w-full rounded-[13px] bg-[#15171c] border border-white/10 px-4 py-3 font-mono text-[13px] leading-relaxed text-white outline-none focus:border-[#16a34a]"
+          placeholder="Напишите решение здесь…"
+          aria-label="Код решения"
+        />
+      )}
       {result && (
         <p className={`text-[12.5px] mt-2 ${result.is_correct ? "text-[#16a34a]" : "text-[#ff4d3d]"}`}>
           {result.is_correct ? "Верно" : "Не совсем"} · {result.explanation}
@@ -216,6 +237,12 @@ function QuestionBlock({
       )}
     </div>
   );
+}
+
+function hasAnswer(question: Question, value: AnswerValue | undefined) {
+  if (question.type === "matching") return Array.isArray(value) && value.length === (question.options?.length ?? 0) && value.every((item) => item >= 0);
+  if (question.type === "sequence") return Array.isArray(value) && value.length === (question.options?.length ?? 0);
+  return value !== undefined && value !== "";
 }
 
 function Choice({ selected, disabled, onClick, children }: { selected: boolean; disabled: boolean; onClick: () => void; children: string }) {

@@ -2,7 +2,8 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { api, sequenceInitialOrder, type Attempt, type Question, type Tournament } from "@/lib/api";
+import { api, matchingInitialValue, sequenceInitialOrder, type Attempt, type Question, type Tournament } from "@/lib/api";
+import MatchingPairs from "@/components/MatchingPairs";
 import SequenceOrder from "@/components/SequenceOrder";
 
 type AnswerValue = number | number[] | string;
@@ -50,8 +51,8 @@ function TournamentLive() {
         setAttempt(attemptData);
         setAnswers(Object.fromEntries(
           attemptData.questions
-            .filter((question) => question.type === "sequence")
-            .map((question) => [question.id, sequenceInitialOrder(question)]),
+            .filter((question) => question.type === "sequence" || question.type === "matching")
+            .map((question) => [question.id, question.type === "sequence" ? sequenceInitialOrder(question) : matchingInitialValue(question)]),
         ));
       } catch (err) {
         setError(err instanceof Error ? err.message : "Не удалось открыть попытку");
@@ -191,6 +192,28 @@ function AnswerControl({ question, value, onChange }: { question: Question; valu
       />
     );
   }
+  if (question.type === "matching" && question.options) {
+    return (
+      <MatchingPairs
+        question={question}
+        value={Array.isArray(value) ? value : matchingInitialValue(question)}
+        onChange={onChange}
+      />
+    );
+  }
+  if (question.type === "code_text") {
+    return (
+      <textarea
+        value={typeof value === "string" ? value : ""}
+        onChange={(event) => onChange(event.target.value)}
+        spellCheck={false}
+        rows={10}
+        className="w-full rounded-[13px] bg-[#15171c] border border-white/10 px-4 py-3 font-mono text-[13px] leading-relaxed text-white outline-none focus:border-[#16a34a]"
+        placeholder="Напишите решение здесь…"
+        aria-label="Код решения"
+      />
+    );
+  }
   return (
     <input
       value={typeof value === "string" ? value : ""}
@@ -223,5 +246,7 @@ function toApiAnswer(question: Question, value: AnswerValue | undefined) {
   if (question.type === "multiple_choice") return { options: Array.isArray(value) ? value : [] };
   if (question.type === "number") return { number: Number(value) };
   if (question.type === "sequence") return { order: Array.isArray(value) ? value : [] };
+  if (question.type === "matching") return { matches: Array.isArray(value) ? value : [] };
+  if (question.type === "code_text") return { code: String(value ?? "") };
   return { text: String(value ?? "") };
 }

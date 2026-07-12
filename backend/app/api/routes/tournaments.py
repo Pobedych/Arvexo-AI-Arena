@@ -223,7 +223,7 @@ def get_attempt(tournament_id: UUID, db: Session = Depends(get_db), current_user
         "started_at": attempt.started_at,
         "due_at": attempt.due_at,
         "questions": [
-            {"id": item.question.id, "prompt": item.question.prompt, "type": item.question.type.value, "options": item.question.options, "points": item.question.points}
+            {"id": item.question.id, "prompt": item.question.prompt, "type": item.question.type.value, "options": item.question.options, "configuration": item.question.configuration, "points": item.question.points}
             for item in _shuffled_questions(tournament, attempt)
         ],
     }

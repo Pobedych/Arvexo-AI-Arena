@@ -122,7 +122,7 @@ def get_lesson(lesson_id: UUID, db: Session = Depends(get_db), current_user: Are
         "order": lesson.order,
         "status": progress.get(str(lesson.id)).status.value if progress.get(str(lesson.id)) else "not_started",
         "questions": [
-            QuestionOut(id=q.id, prompt=q.prompt, type=q.type.value, options=q.options, points=q.points)
+            QuestionOut(id=q.id, prompt=q.prompt, type=q.type.value, options=q.options, configuration=q.configuration, points=q.points)
             for q in lesson.questions
             if q.status == ContentStatus.published
         ],
@@ -179,7 +179,7 @@ def practice_questions(limit: int = 3, db: Session = Depends(get_db), current_us
         .limit(max(1, min(limit, 10)))
         .all()
     )
-    return [QuestionOut(id=q.id, prompt=q.prompt, type=q.type.value, options=q.options, points=q.points) for q in questions]
+    return [QuestionOut(id=q.id, prompt=q.prompt, type=q.type.value, options=q.options, configuration=q.configuration, points=q.points) for q in questions]
 
 
 @router.post("/practice/check")
