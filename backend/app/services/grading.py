@@ -27,5 +27,19 @@ def grade_question(question: Question, answer: dict | None) -> tuple[bool, int]:
             is_correct = isclose(submitted, expected, abs_tol=tolerance)
         except (TypeError, ValueError):
             is_correct = False
+    elif question.type == QuestionType.ordering:
+        submitted_order = answer.get("order")
+        is_correct = isinstance(submitted_order, list) and list(submitted_order) == list(correct.get("order") or [])
+    elif question.type == QuestionType.graph_point:
+        try:
+            submitted_x = float(answer.get("x"))
+            submitted_y = float(answer.get("y"))
+            expected_x = float(correct.get("x"))
+            expected_y = float(correct.get("y"))
+            tolerance = question.tolerance if question.tolerance is not None else 0.5
+            distance = ((submitted_x - expected_x) ** 2 + (submitted_y - expected_y) ** 2) ** 0.5
+            is_correct = distance <= tolerance
+        except (TypeError, ValueError):
+            is_correct = False
 
     return is_correct, question.points if is_correct else 0

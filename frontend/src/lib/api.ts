@@ -48,14 +48,33 @@ export type ActivityDay = {
   count: number;
 };
 
+export type ChartData = {
+  x_min: number;
+  x_max: number;
+  y_min: number;
+  y_max: number;
+  x_label?: string;
+  y_label?: string;
+  curve?: [number, number][];
+};
+
 export type Question = {
   id: string;
   prompt: string;
-  type: "single_choice" | "multiple_choice" | "short_text" | "number" | string;
+  type: "single_choice" | "multiple_choice" | "short_text" | "number" | "ordering" | "graph_point" | string;
   options: string[] | null;
   points: number;
   explanation?: string | null;
   correct_answer?: Record<string, unknown> | null;
+  chart_data?: ChartData | null;
+};
+
+export type LessonBlock = {
+  id: string;
+  order: number;
+  kind: "theory" | "question" | string;
+  theory: string | null;
+  question: Question | null;
 };
 
 export type Lesson = {
@@ -66,6 +85,7 @@ export type Lesson = {
   order: number;
   status: string;
   questions: Question[];
+  blocks: LessonBlock[];
 };
 
 export type Tournament = {
@@ -198,11 +218,17 @@ export function formatDuration(seconds: number | null) {
   return `${minutes} мин ${rest.toString().padStart(2, "0")} с`;
 }
 
-export type AnswerValue = number | number[] | string;
+export type GraphPointValue = { x: number; y: number };
+export type AnswerValue = number | number[] | string | GraphPointValue;
 
 export function toApiAnswer(question: Question, value: AnswerValue | undefined) {
   if (question.type === "single_choice") return { option: value };
   if (question.type === "multiple_choice") return { options: Array.isArray(value) ? value : [] };
   if (question.type === "number") return { number: Number(value) };
+  if (question.type === "ordering") return { order: Array.isArray(value) ? value : [] };
+  if (question.type === "graph_point") {
+    const point = value as GraphPointValue | undefined;
+    return { x: point?.x ?? null, y: point?.y ?? null };
+  }
   return { text: String(value ?? "") };
 }

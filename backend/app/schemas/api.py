@@ -55,6 +55,15 @@ class QuestionOut(BaseModel):
     points: int
     explanation: str | None = None
     correct_answer: dict[str, Any] | None = None
+    chart_data: dict[str, Any] | None = None
+
+
+class LessonBlockOut(BaseModel):
+    id: UUID
+    order: int
+    kind: str
+    theory: str | None = None
+    question: QuestionOut | None = None
 
 
 class LessonOut(BaseModel):
@@ -65,6 +74,11 @@ class LessonOut(BaseModel):
     order: int
     status: str
     questions: list[QuestionOut]
+    blocks: list[LessonBlockOut] = Field(default_factory=list)
+
+
+class AnswerCheckIn(BaseModel):
+    answer: dict[str, AnswerValue] = Field(default_factory=dict)
 
 
 class SectionOut(BaseModel):
@@ -149,6 +163,7 @@ class QuestionCreateIn(BaseModel):
     difficulty: str = "easy"
     order: int = 1
     status: str = "draft"
+    chart_data: dict[str, Any] | None = None
 
 
 class QuestionUpdateIn(BaseModel):
@@ -164,6 +179,22 @@ class QuestionUpdateIn(BaseModel):
     difficulty: str | None = None
     order: int | None = None
     status: str | None = None
+    chart_data: dict[str, Any] | None = None
+
+
+class LessonBlockCreateIn(BaseModel):
+    lesson_id: UUID
+    order: int = 1
+    kind: str
+    theory: str | None = None
+    question_id: UUID | None = None
+
+
+class LessonBlockUpdateIn(BaseModel):
+    order: int | None = None
+    kind: str | None = None
+    theory: str | None = None
+    question_id: UUID | None = None
 
 
 class TournamentCreateIn(BaseModel):

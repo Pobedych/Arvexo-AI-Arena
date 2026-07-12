@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse
 
 from app.api.routes import admin, auth, health, learning, tournaments
 from app.core.config import settings, validate_production_settings
+from app.services import scheduler
 
 app = FastAPI(title="Arvexo Olympiad Arena API")
 
@@ -34,6 +35,12 @@ async def csrf_origin_guard(request: Request, call_next):
 @app.on_event("startup")
 def on_startup() -> None:
     validate_production_settings(settings)
+    scheduler.start()
+
+
+@app.on_event("shutdown")
+def on_shutdown() -> None:
+    scheduler.stop()
 
 
 app.include_router(health.router)

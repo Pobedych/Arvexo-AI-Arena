@@ -6,24 +6,32 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import get_current_user
 from app.db.session import get_db
-from app.models.entities import ArenaUser, ContentStatus, Lesson, LessonProgress, LessonStatus, Question, Section, Track, now_utc
-from app.schemas.api import AnswerIn, LessonOut, LessonSubmitIn, QuestionOut, TrackOut
+from app.models.entities import ArenaUser, ContentStatus, Lesson, LessonBlock, LessonProgress, LessonStatus, Question, Section, Track, now_utc
+from app.schemas.api import AnswerCheckIn, AnswerIn, LessonOut, LessonSubmitIn, QuestionOut, TrackOut
 from app.services.gamification import record_activity, sync_xp, weekly_activity
 from app.services.grading import grade_question
 
 router = APIRouter(tags=["learning"])
 
 
-def _ai_track(db: Session) -> Track:
+def _track_by_slug(db: Session, slug: str) -> Track:
     track = (
         db.query(Track)
         .options(selectinload(Track.sections).selectinload(Section.lessons).selectinload(Lesson.questions))
-        .filter(Track.slug == "ai", Track.status == ContentStatus.published)
+        .filter(Track.slug == slug, Track.status == ContentStatus.published)
         .one_or_none()
     )
     if not track:
-        raise HTTPException(status_code=404, detail="AI Track is not available")
+        raise HTTPException(status_code=404, detail="Track is not available")
     return track
+
+
+def _ai_track(db: Session) -> Track:
+    return _track_by_slug(db, "ai")
+
+
+def _question_out(question: Question) -> QuestionOut:
+    return QuestionOut(id=question.id, prompt=question.prompt, type=question.type.value, options=question.options, points=question.points, chart_data=question.chart_data)
 
 
 def _progress_map(db: Session, user: ArenaUser) -> dict[str, LessonProgress]:
@@ -46,8 +54,19 @@ def _is_unlocked(lessons: list[Lesson], progress: dict[str, LessonProgress], les
     return bool(prev and prev.status == LessonStatus.completed)
 
 
+def _track_for_lesson(db: Session, lesson_id: UUID) -> Track | None:
+    lesson_row = db.get(Lesson, lesson_id)
+    if not lesson_row:
+        return None
+    section = db.get(Section, lesson_row.section_id)
+    track_stub = db.get(Track, section.track_id) if section else None
+    return _track_by_slug(db, track_stub.slug) if track_stub else None
+
+
 def _accessible_lesson(db: Session, user: ArenaUser, lesson_id: UUID) -> tuple[Lesson, dict[str, LessonProgress]]:
-    track = _ai_track(db)
+    track = _track_for_lesson(db, lesson_id)
+    if not track:
+        raise HTTPException(status_code=404, detail="Lesson not found")
     lessons = _ordered_lessons(track)
     progress = _progress_map(db, user)
     lesson = next((item for item in lessons if item.id == lesson_id), None)
@@ -58,19 +77,8 @@ def _accessible_lesson(db: Session, user: ArenaUser, lesson_id: UUID) -> tuple[L
     return lesson, progress
 
 
-@router.post("/tracks/ai/select", response_model=TrackOut)
-def select_ai_track(db: Session = Depends(get_db), current_user: ArenaUser = Depends(get_current_user)):
-    track = _ai_track(db)
-    current_user.selected_track_id = track.id
-    db.commit()
-    db.refresh(current_user)
-    return get_ai_track(db, current_user)
-
-
-@router.get("/tracks/ai", response_model=TrackOut)
-def get_ai_track(db: Session = Depends(get_db), current_user: ArenaUser = Depends(get_current_user)):
-    track = _ai_track(db)
-    progress = _progress_map(db, current_user)
+def _track_payload(db: Session, user: ArenaUser, track: Track) -> dict:
+    progress = _progress_map(db, user)
     lessons = _ordered_lessons(track)
     completed = sum(1 for lesson in lessons if progress.get(str(lesson.id)) and progress[str(lesson.id)].status == LessonStatus.completed)
     current = next((lesson for lesson in lessons if _is_unlocked(lessons, progress, lesson) and not (progress.get(str(lesson.id)) and progress[str(lesson.id)].status == LessonStatus.completed)), None)
@@ -111,9 +119,38 @@ def get_ai_track(db: Session = Depends(get_db), current_user: ArenaUser = Depend
     }
 
 
+@router.post("/tracks/ai/select", response_model=TrackOut)
+def select_ai_track(db: Session = Depends(get_db), current_user: ArenaUser = Depends(get_current_user)):
+    track = _ai_track(db)
+    current_user.selected_track_id = track.id
+    db.commit()
+    db.refresh(current_user)
+    return _track_payload(db, current_user, track)
+
+
+@router.get("/tracks/ai", response_model=TrackOut)
+def get_ai_track(db: Session = Depends(get_db), current_user: ArenaUser = Depends(get_current_user)):
+    return _track_payload(db, current_user, _ai_track(db))
+
+
+@router.post("/tracks/{slug}/select", response_model=TrackOut)
+def select_track(slug: str, db: Session = Depends(get_db), current_user: ArenaUser = Depends(get_current_user)):
+    track = _track_by_slug(db, slug)
+    current_user.selected_track_id = track.id
+    db.commit()
+    db.refresh(current_user)
+    return _track_payload(db, current_user, track)
+
+
+@router.get("/tracks/{slug}", response_model=TrackOut)
+def get_track(slug: str, db: Session = Depends(get_db), current_user: ArenaUser = Depends(get_current_user)):
+    return _track_payload(db, current_user, _track_by_slug(db, slug))
+
+
 @router.get("/lessons/{lesson_id}", response_model=LessonOut)
 def get_lesson(lesson_id: UUID, db: Session = Depends(get_db), current_user: ArenaUser = Depends(get_current_user)):
     lesson, progress = _accessible_lesson(db, current_user, lesson_id)
+    blocks = db.query(LessonBlock).filter(LessonBlock.lesson_id == lesson.id).order_by(LessonBlock.order).all()
     return {
         "id": lesson.id,
         "title": lesson.title,
@@ -121,12 +158,29 @@ def get_lesson(lesson_id: UUID, db: Session = Depends(get_db), current_user: Are
         "theory": lesson.theory,
         "order": lesson.order,
         "status": progress.get(str(lesson.id)).status.value if progress.get(str(lesson.id)) else "not_started",
-        "questions": [
-            QuestionOut(id=q.id, prompt=q.prompt, type=q.type.value, options=q.options, points=q.points)
-            for q in lesson.questions
-            if q.status == ContentStatus.published
+        "questions": [_question_out(q) for q in lesson.questions if q.status == ContentStatus.published],
+        "blocks": [
+            {
+                "id": block.id,
+                "order": block.order,
+                "kind": block.kind.value,
+                "theory": block.theory,
+                "question": _question_out(block.question) if block.question and block.question.status == ContentStatus.published else None,
+            }
+            for block in blocks
         ],
     }
+
+
+@router.post("/lessons/{lesson_id}/questions/{question_id}/check")
+def check_lesson_question(lesson_id: UUID, question_id: UUID, payload: AnswerCheckIn, db: Session = Depends(get_db), current_user: ArenaUser = Depends(get_current_user)):
+    """Stateless mini-check for an interleaved lesson block (§4.1-style instant feedback). Does not persist progress — final `submit` remains authoritative."""
+    lesson, _ = _accessible_lesson(db, current_user, lesson_id)
+    question = next((q for q in lesson.questions if q.id == question_id and q.status == ContentStatus.published), None)
+    if not question:
+        raise HTTPException(status_code=404, detail="Question not found")
+    is_correct, points = grade_question(question, payload.answer)
+    return {"is_correct": is_correct, "points": points, "max_points": question.points, "explanation": question.explanation}
 
 
 @router.post("/lessons/{lesson_id}/submit")
@@ -179,7 +233,7 @@ def practice_questions(limit: int = 3, db: Session = Depends(get_db), current_us
         .limit(max(1, min(limit, 10)))
         .all()
     )
-    return [QuestionOut(id=q.id, prompt=q.prompt, type=q.type.value, options=q.options, points=q.points) for q in questions]
+    return [_question_out(q) for q in questions]
 
 
 @router.post("/practice/check")

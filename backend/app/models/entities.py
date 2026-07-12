@@ -39,6 +39,13 @@ class QuestionType(str, enum.Enum):
     multiple_choice = "multiple_choice"
     short_text = "short_text"
     number = "number"
+    ordering = "ordering"
+    graph_point = "graph_point"
+
+
+class LessonBlockKind(str, enum.Enum):
+    theory = "theory"
+    question = "question"
 
 
 class TournamentStatus(str, enum.Enum):
@@ -136,6 +143,7 @@ class Lesson(TimestampMixin, Base):
 
     section: Mapped[Section] = relationship(back_populates="lessons")
     questions: Mapped[list["Question"]] = relationship(back_populates="lesson", order_by="Question.order", cascade="all, delete-orphan")
+    blocks: Mapped[list["LessonBlock"]] = relationship(back_populates="lesson", order_by="LessonBlock.order", cascade="all, delete-orphan")
 
 
 class Question(TimestampMixin, Base):
@@ -154,8 +162,25 @@ class Question(TimestampMixin, Base):
     difficulty: Mapped[str] = mapped_column(String(30), default="easy", nullable=False)
     order: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     status: Mapped[ContentStatus] = mapped_column(Enum(ContentStatus), default=ContentStatus.published, nullable=False)
+    chart_data: Mapped[dict | None] = mapped_column(JSON)
 
     lesson: Mapped[Lesson | None] = relationship(back_populates="questions")
+
+
+class LessonBlock(TimestampMixin, Base):
+    """Interleaves short theory segments with mini-check questions inside a lesson (§4.1-style instant feedback, per-lesson)."""
+
+    __tablename__ = "lesson_blocks"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    lesson_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("lessons.id"), index=True, nullable=False)
+    order: Mapped[int] = mapped_column(Integer, nullable=False)
+    kind: Mapped[LessonBlockKind] = mapped_column(Enum(LessonBlockKind), nullable=False)
+    theory: Mapped[str | None] = mapped_column(Text)
+    question_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("questions.id"))
+
+    lesson: Mapped[Lesson] = relationship(back_populates="blocks")
+    question: Mapped[Question | None] = relationship()
 
 
 class LessonProgress(TimestampMixin, Base):
@@ -179,6 +204,20 @@ class ActivityLog(TimestampMixin, Base):
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("arena_users.id"), nullable=False)
     activity_date: Mapped[date] = mapped_column(Date, nullable=False)
     action_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+
+class AdminActionLog(Base):
+    """§14.11: minimal audit trail of admin actions (who did what, to which object, when)."""
+
+    __tablename__ = "admin_action_logs"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    admin_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("arena_users.id"), index=True, nullable=False)
+    action: Mapped[str] = mapped_column(String(60), nullable=False)
+    target_type: Mapped[str] = mapped_column(String(60), nullable=False)
+    target_id: Mapped[str | None] = mapped_column(String(80))
+    description: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True, default=now_utc, nullable=False)
 
 
 class Tournament(TimestampMixin, Base):

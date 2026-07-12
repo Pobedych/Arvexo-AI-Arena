@@ -12,6 +12,12 @@
       "runtimeExecutable": "backend/.venv/bin/uvicorn",
       "runtimeArgs": ["app.main:app", "--reload", "--port", "8000", "--app-dir", "backend"],
       "port": 8000
+    },
+    {
+      "name": "stub-account",
+      "runtimeExecutable": "backend/.venv/bin/uvicorn",
+      "runtimeArgs": ["app.scripts.stub_account:app", "--port", "8032", "--app-dir", "backend"],
+      "port": 8032
     }
   ]
 }

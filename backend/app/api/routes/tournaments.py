@@ -68,6 +68,24 @@ def _finalize_attempts(db: Session, tournament: Tournament) -> None:
             attempt.status = ParticipationStatus.missed
 
 
+def sync_open_tournaments(db: Session) -> None:
+    """§16.7: proactively advance published/active tournaments past their end time."""
+    tournaments = db.query(Tournament).filter(Tournament.status.in_([TournamentStatus.published, TournamentStatus.active])).all()
+    for tournament in tournaments:
+        _sync_status(tournament, db)
+
+
+def finalize_due_attempts(db: Session) -> None:
+    """§13.4: auto-submit in-progress attempts whose individual deadline passed, without waiting for a request."""
+    now = now_utc()
+    attempts = db.query(TournamentAttempt).filter(TournamentAttempt.status == ParticipationStatus.in_progress, TournamentAttempt.due_at.isnot(None)).all()
+    for attempt in attempts:
+        if _aware(attempt.due_at) > now:
+            continue
+        tournament = _tournament(db, attempt.tournament_id)
+        _submit_attempt(db, attempt, tournament, auto=True)
+
+
 def _linked_lessons(db: Session, tournament: Tournament) -> list[Lesson]:
     lesson_ids = {item.question.lesson_id for item in tournament.questions if item.question.lesson_id}
     if not lesson_ids:

@@ -1,28 +1,37 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api, currentLesson, type Track, type TrackLesson } from "@/lib/api";
 import { Eyebrow, Card } from "@/components/ui";
 
+const TRACK_SKILLS: Record<string, string[]> = {
+  ai: ["ML базовый", "Работа с данными", "Метрики качества", "Этика AI"],
+  math: ["Алгебра", "Геометрия", "Функции", "Логика"],
+};
+
 export default function TrackPage() {
+  const searchParams = useSearchParams();
+  const slug = searchParams.get("slug") || "ai";
   const [track, setTrack] = useState<Track | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    api<Track>("/tracks/ai")
+    setLoading(true);
+    api<Track>(`/tracks/${slug}`)
       .then((data) => {
         setTrack(data);
         setError("");
       })
-      .catch((err) => setError(err instanceof Error ? err.message : "Не удалось загрузить AI Track"))
+      .catch((err) => setError(err instanceof Error ? err.message : "Не удалось загрузить трек"))
       .finally(() => setLoading(false));
-  }, []);
+  }, [slug]);
 
   async function selectTrack() {
     try {
-      const selected = await api<Track>("/tracks/ai/select", { method: "POST" });
+      const selected = await api<Track>(`/tracks/${slug}/select`, { method: "POST" });
       setTrack(selected);
       setError("");
     } catch (err) {
@@ -31,24 +40,25 @@ export default function TrackPage() {
   }
 
   if (loading) {
-    return <div className="text-sm text-[#6b6f76]">Загружаем AI Track...</div>;
+    return <div className="text-sm text-[#6b6f76]">Загружаем трек...</div>;
   }
 
   if (error || !track) {
     return (
       <div className="rounded-[16px] border border-[rgba(255,77,61,.25)] bg-[rgba(255,77,61,.06)] px-5 py-4 text-sm text-[#b42318]">
-        {error || "Не удалось загрузить AI Track"}
+        {error || "Не удалось загрузить трек"}
       </div>
     );
   }
 
   const lesson = currentLesson(track);
+  const skills = TRACK_SKILLS[track.slug] ?? [];
 
   return (
     <div>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 mb-4.5">
         <div>
-          <Eyebrow>AI Track</Eyebrow>
+          <Eyebrow>{track.title}</Eyebrow>
           <h1 className="font-[family-name:var(--font-display)] text-[clamp(28px,3.6vw,44px)] font-semibold">
             Карта подготовки
           </h1>
@@ -74,7 +84,7 @@ export default function TrackPage() {
         <Stat value={`${Math.max(track.total_lessons - track.completed_lessons, 0)}`} label="осталось уроков" />
         <Stat value={track.progress_percent >= 70 ? "Готов" : "Подготовка"} label="статус к турниру" />
         <button onClick={selectTrack} className="rounded-2xl bg-[#15171c] text-white py-3.5 px-4 text-left hover:opacity-90 transition-opacity">
-          <strong className="font-[family-name:var(--font-display)] text-[22px] block text-[#ffb100]">AI</strong>
+          <strong className="font-[family-name:var(--font-display)] text-[22px] block text-[#ffb100]">{track.slug.toUpperCase()}</strong>
           <span className="text-[11.5px] text-white/55">выбрать трек</span>
         </button>
       </div>
@@ -107,7 +117,7 @@ export default function TrackPage() {
           <Card className="rounded-[20px] p-5">
             <p className="text-[#6b6f76] text-[10.5px] font-bold tracking-[.1em] uppercase mb-3">Навыки трека</p>
             <div className="flex flex-wrap gap-1.5">
-              {["ML базовый", "Работа с данными", "Метрики качества", "Этика AI"].map((skill, index) => (
+              {skills.map((skill, index) => (
                 <span key={skill} className={`text-[11px] rounded-full py-1.5 px-2.5 ${index === 0 ? "bg-[#16a34a] text-white" : "bg-[#f6f4ee]"}`}>
                   {skill}
                 </span>

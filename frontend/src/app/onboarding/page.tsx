@@ -5,24 +5,25 @@ import { useRouter } from "next/navigation";
 import { api, type Track } from "@/lib/api";
 
 const tracks = [
-  { icon: "AI", title: "AI Track", desc: "12 уроков · от основ AI до responsible AI", enabled: true },
-  { icon: "DT", title: "Data Track", desc: "Скоро", enabled: false },
-  { icon: "SC", title: "Security Track", desc: "Скоро", enabled: false },
+  { slug: "ai", icon: "AI", title: "AI Track", desc: "12 уроков · от основ AI до responsible AI", enabled: true },
+  { slug: "math", icon: "MT", title: "Math Track", desc: "Интерактивные задания и мини-проверки по математике", enabled: true },
+  { slug: "security", icon: "SC", title: "Security Track", desc: "Скоро", enabled: false },
 ];
 
 export default function Onboarding() {
   const router = useRouter();
+  const [selected, setSelected] = useState("ai");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function continueWithAiTrack() {
+  async function continueWithTrack() {
     setLoading(true);
     setError(null);
     try {
-      await api<Track>("/tracks/ai/select", { method: "POST" });
+      await api<Track>(`/tracks/${selected}/select`, { method: "POST" });
       router.push("/app/dashboard");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось выбрать AI Track");
+      setError(err instanceof Error ? err.message : "Не удалось выбрать трек");
     } finally {
       setLoading(false);
     }
@@ -43,29 +44,35 @@ export default function Onboarding() {
         </p>
 
         <div className="grid gap-3 text-left mb-7">
-          {tracks.map((track) => (
-            <div
-              key={track.title}
-              className={`flex items-center gap-3.5 rounded-2xl py-4.5 px-5 ${
-                track.enabled ? "border-2 border-[#16a34a] bg-[#16a34a]/[.04]" : "border border-[rgba(21,23,28,.1)] opacity-50"
-              }`}
-            >
-              <span className={`w-10 h-10 rounded-[11px] grid place-items-center text-[12px] font-extrabold shrink-0 ${track.enabled ? "bg-[#16a34a] text-white" : "bg-[#f6f4ee]"}`}>
-                {track.icon}
-              </span>
-              <div className="flex-1">
-                <strong className="text-[14.5px] block mb-0.5">{track.title}</strong>
-                <span className="text-xs text-[#6b6f76]">{track.desc}</span>
-              </div>
-              {track.enabled && <span className="text-[#16a34a] font-extrabold text-base">✓</span>}
-            </div>
-          ))}
+          {tracks.map((track) => {
+            const isSelected = track.enabled && selected === track.slug;
+            return (
+              <button
+                type="button"
+                key={track.slug}
+                disabled={!track.enabled}
+                onClick={() => setSelected(track.slug)}
+                className={`flex items-center gap-3.5 rounded-2xl py-4.5 px-5 text-left w-full transition-colors ${
+                  isSelected ? "border-2 border-[#16a34a] bg-[#16a34a]/[.04]" : "border border-[rgba(21,23,28,.1)]"
+                } ${!track.enabled ? "opacity-50 cursor-default" : "cursor-pointer"}`}
+              >
+                <span className={`w-10 h-10 rounded-[11px] grid place-items-center text-[12px] font-extrabold shrink-0 ${isSelected ? "bg-[#16a34a] text-white" : "bg-[#f6f4ee]"}`}>
+                  {track.icon}
+                </span>
+                <div className="flex-1">
+                  <strong className="text-[14.5px] block mb-0.5">{track.title}</strong>
+                  <span className="text-xs text-[#6b6f76]">{track.desc}</span>
+                </div>
+                {isSelected && <span className="text-[#16a34a] font-extrabold text-base">✓</span>}
+              </button>
+            );
+          })}
         </div>
 
         {error && <p className="text-[#ff4d3d] text-xs font-semibold mb-3">{error}</p>}
 
         <button
-          onClick={continueWithAiTrack}
+          onClick={continueWithTrack}
           disabled={loading}
           className="inline-flex items-center h-12.5 px-7.5 rounded-[10px] bg-[#15171c] text-white font-bold text-[14.5px] hover:opacity-86 transition-opacity disabled:opacity-50"
         >
