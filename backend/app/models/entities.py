@@ -139,6 +139,19 @@ class Lesson(TimestampMixin, Base):
 
     section: Mapped[Section] = relationship(back_populates="lessons")
     questions: Mapped[list["Question"]] = relationship(back_populates="lesson", order_by="Question.order", cascade="all, delete-orphan")
+    steps: Mapped[list["LessonStep"]] = relationship(back_populates="lesson", order_by="LessonStep.order", cascade="all, delete-orphan")
+
+
+class LessonStep(TimestampMixin, Base):
+    __tablename__ = "lesson_steps"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    lesson_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("lessons.id"), nullable=False)
+    title: Mapped[str] = mapped_column(String(220), default="", nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    order: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+
+    lesson: Mapped[Lesson] = relationship(back_populates="steps")
 
 
 class Question(TimestampMixin, Base):

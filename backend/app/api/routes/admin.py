@@ -14,6 +14,7 @@ from app.models.entities import (
     ContentStatus,
     Lesson,
     LessonProgress,
+    LessonStep,
     Question,
     QuestionType,
     Section,
@@ -116,6 +117,10 @@ def _lesson_dict(lesson: Lesson) -> dict:
         "pass_percent": lesson.pass_percent,
         "status": lesson.status.value,
         "questions_count": len(lesson.questions),
+        "steps": [
+            {"id": step.id, "title": step.title, "body": step.body, "order": step.order}
+            for step in sorted(lesson.steps, key=lambda step: step.order)
+        ],
     }
 
 
@@ -338,7 +343,7 @@ def delete_section(section_id: UUID, _: ArenaUser = Depends(get_current_admin), 
 
 @router.get("/lessons")
 def list_lessons(_: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
-    lessons = db.query(Lesson).options(selectinload(Lesson.questions)).order_by(Lesson.order).all()
+    lessons = db.query(Lesson).options(selectinload(Lesson.questions), selectinload(Lesson.steps)).order_by(Lesson.order).all()
     return [_lesson_dict(lesson) for lesson in lessons]
 
 
@@ -346,6 +351,8 @@ def list_lessons(_: ArenaUser = Depends(get_current_admin), db: Session = Depend
 def create_lesson(payload: LessonCreateIn, _: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
     if not db.get(Section, payload.section_id):
         raise HTTPException(status_code=404, detail="Section not found")
+    if not payload.theory.strip() and not payload.steps:
+        raise HTTPException(status_code=400, detail="Add theory text or at least one step")
     lesson = Lesson(
         section_id=payload.section_id,
         title=payload.title,
@@ -354,6 +361,7 @@ def create_lesson(payload: LessonCreateIn, _: ArenaUser = Depends(get_current_ad
         order=payload.order,
         pass_percent=payload.pass_percent,
         status=_content_status(payload.status),
+        steps=[LessonStep(title=step.title, body=step.body, order=step.order) for step in payload.steps],
     )
     db.add(lesson)
     db.commit()
@@ -371,8 +379,15 @@ def update_lesson(lesson_id: UUID, payload: LessonUpdateIn, _: ArenaUser = Depen
         raise HTTPException(status_code=404, detail="Section not found")
     if "status" in data:
         data["status"] = _content_status(data["status"])
+    steps = data.pop("steps", None)
+    next_theory = data.get("theory", lesson.theory)
+    next_steps = steps if steps is not None else [{"body": step.body} for step in lesson.steps]
+    if not next_theory.strip() and not next_steps:
+        raise HTTPException(status_code=400, detail="Add theory text or at least one step")
     for key, value in data.items():
         setattr(lesson, key, value)
+    if steps is not None:
+        lesson.steps = [LessonStep(title=step["title"], body=step["body"], order=step["order"]) for step in steps]
     db.commit()
     db.refresh(lesson)
     return _lesson_dict(lesson)

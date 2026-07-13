@@ -17,7 +17,10 @@ router = APIRouter(tags=["learning"])
 def _ai_track(db: Session) -> Track:
     track = (
         db.query(Track)
-        .options(selectinload(Track.sections).selectinload(Section.lessons).selectinload(Lesson.questions))
+        .options(
+            selectinload(Track.sections).selectinload(Section.lessons).selectinload(Lesson.questions),
+            selectinload(Track.sections).selectinload(Section.lessons).selectinload(Lesson.steps),
+        )
         .filter(Track.slug == "ai", Track.status == ContentStatus.published)
         .one_or_none()
     )
@@ -121,8 +124,9 @@ def get_lesson(lesson_id: UUID, db: Session = Depends(get_db), current_user: Are
         "theory": lesson.theory,
         "order": lesson.order,
         "status": progress.get(str(lesson.id)).status.value if progress.get(str(lesson.id)) else "not_started",
+        "steps": [{"id": step.id, "title": step.title, "body": step.body, "order": step.order} for step in lesson.steps],
         "questions": [
-            QuestionOut(id=q.id, prompt=q.prompt, type=q.type.value, options=q.options, configuration=q.configuration, points=q.points)
+            QuestionOut(id=q.id, prompt=q.prompt, type=q.type.value, options=q.options, configuration=q.configuration, points=q.points, order=q.order)
             for q in lesson.questions
             if q.status == ContentStatus.published
         ],

@@ -57,6 +57,14 @@ export type Question = {
   points: number;
   explanation?: string | null;
   correct_answer?: Record<string, unknown> | null;
+  order: number;
+};
+
+export type LessonStep = {
+  id: string;
+  title: string;
+  body: string;
+  order: number;
 };
 
 export type Lesson = {
@@ -66,6 +74,7 @@ export type Lesson = {
   theory: string;
   order: number;
   status: string;
+  steps: LessonStep[];
   questions: Question[];
 };
 

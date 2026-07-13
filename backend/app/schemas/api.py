@@ -56,6 +56,14 @@ class QuestionOut(BaseModel):
     points: int
     explanation: str | None = None
     correct_answer: dict[str, Any] | None = None
+    order: int = 1
+
+
+class LessonStepOut(BaseModel):
+    id: UUID
+    title: str
+    body: str
+    order: int
 
 
 class LessonOut(BaseModel):
@@ -65,6 +73,7 @@ class LessonOut(BaseModel):
     theory: str
     order: int
     status: str
+    steps: list[LessonStepOut] = []
     questions: list[QuestionOut]
 
 
@@ -117,14 +126,21 @@ class SectionUpdateIn(BaseModel):
     order: int | None = None
 
 
+class LessonStepIn(BaseModel):
+    title: str = ""
+    body: str
+    order: int = 1
+
+
 class LessonCreateIn(BaseModel):
     section_id: UUID
     title: str
     summary: str = ""
-    theory: str
+    theory: str = ""
     order: int = 1
     pass_percent: int = 70
     status: str = "draft"
+    steps: list[LessonStepIn] = []
 
 
 class LessonUpdateIn(BaseModel):
@@ -135,6 +151,7 @@ class LessonUpdateIn(BaseModel):
     order: int | None = None
     pass_percent: int | None = None
     status: str | None = None
+    steps: list[LessonStepIn] | None = None
 
 
 class QuestionCreateIn(BaseModel):

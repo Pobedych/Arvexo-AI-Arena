@@ -24,6 +24,8 @@ type Track = {
   sections: SectionRow[];
 };
 
+type LessonStep = { id: string; title: string; body: string; order: number };
+
 type Lesson = {
   id: string;
   section_id: string;
@@ -34,7 +36,12 @@ type Lesson = {
   pass_percent: number;
   status: string;
   questions_count: number;
+  steps: LessonStep[];
 };
+
+type SequenceBlock =
+  | { kind: "step"; tempId: string; title: string; body: string }
+  | { kind: "question"; questionId: string };
 
 type Question = {
   id: string;
@@ -216,7 +223,7 @@ export default function AdminClient() {
   const [lessonSearch, setLessonSearch] = useState("");
   const [editingLesson, setEditingLesson] = useState<Lesson | null>(null);
   const [editingSection, setEditingSection] = useState<SectionRow | null>(null);
-  const [theoryDraft, setTheoryDraft] = useState("");
+  const [sequence, setSequence] = useState<SequenceBlock[]>([{ kind: "step", tempId: "new-0", title: "", body: "" }]);
   const [theoryPreview, setTheoryPreview] = useState(false);
   const [questionSearch, setQuestionSearch] = useState("");
   const [questionStatus, setQuestionStatus] = useState("all");
@@ -419,9 +426,19 @@ export default function AdminClient() {
     setNumberTolerance("0");
   }
 
+  function buildSequence(lesson: Lesson): SequenceBlock[] {
+    const stepBlocks = lesson.steps.map((step) => ({ block: { kind: "step" as const, tempId: step.id, title: step.title, body: step.body }, order: step.order, isStep: true }));
+    const questionBlocks = questions
+      .filter((question) => question.lesson_id === lesson.id)
+      .map((question) => ({ block: { kind: "question" as const, questionId: question.id }, order: question.order, isStep: false }));
+    return [...stepBlocks, ...questionBlocks]
+      .sort((a, b) => a.order - b.order || (a.isStep ? -1 : 1))
+      .map((item) => item.block);
+  }
+
   function startEditLesson(lesson: Lesson) {
     setEditingLesson(lesson);
-    setTheoryDraft(lesson.theory);
+    setSequence(buildSequence(lesson));
     setTheoryPreview(false);
     setNotice("");
     setError("");
@@ -429,34 +446,80 @@ export default function AdminClient() {
 
   function cancelEditLesson() {
     setEditingLesson(null);
-    setTheoryDraft("");
+    setSequence([{ kind: "step", tempId: "new-0", title: "", body: "" }]);
     setTheoryPreview(false);
+  }
+
+  function addStep() {
+    setSequence((current) => [...current, { kind: "step", tempId: `new-${Date.now()}`, title: "", body: "" }]);
+  }
+
+  function addQuestionToSequence(questionId: string) {
+    if (!questionId) return;
+    setSequence((current) => (current.some((block) => block.kind === "question" && block.questionId === questionId) ? current : [...current, { kind: "question", questionId }]));
+  }
+
+  function updateStepInSequence(tempId: string, patch: Partial<{ title: string; body: string }>) {
+    setSequence((current) => current.map((block) => (block.kind === "step" && block.tempId === tempId ? { ...block, ...patch } : block)));
+  }
+
+  function removeFromSequence(index: number) {
+    setSequence((current) => current.filter((_, itemIndex) => itemIndex !== index));
+  }
+
+  function moveInSequence(index: number, direction: -1 | 1) {
+    setSequence((current) => {
+      const target = index + direction;
+      if (target < 0 || target >= current.length) return current;
+      const next = [...current];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
   }
 
   async function submitLesson(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formEl = event.currentTarget;
     const form = new FormData(formEl);
+    if (!sequence.length) {
+      setError("Добавьте хотя бы один шаг теории");
+      return;
+    }
+    const steps = sequence
+      .map((block, index) => ({ block, order: index + 1 }))
+      .filter(({ block }) => block.kind === "step")
+      .map(({ block, order }) => ({ title: (block as { title: string }).title, body: (block as { body: string }).body, order }));
+    if (steps.some((step) => !step.body.trim())) {
+      setError("Заполните текст каждого шага");
+      return;
+    }
+    const questionOrders = sequence
+      .map((block, index) => ({ block, order: index + 1 }))
+      .filter(({ block }) => block.kind === "question")
+      .map(({ block, order }) => ({ id: (block as { questionId: string }).questionId, order }));
     const payload = {
       section_id: form.get("section_id"),
       title: form.get("title"),
       summary: form.get("summary"),
-      theory: form.get("theory"),
       order: Number(form.get("order") || 1),
       pass_percent: Number(form.get("pass_percent") || 70),
       status: form.get("status"),
+      steps,
     };
     try {
       if (editingLesson) {
         await api(`/admin/lessons/${editingLesson.id}`, { method: "PATCH", body: JSON.stringify(payload) });
         setNotice("Урок обновлён");
-        cancelEditLesson();
       } else {
         await api("/admin/lessons", { method: "POST", body: JSON.stringify(payload) });
         setNotice("Урок создан");
+      }
+      await Promise.all(questionOrders.map(({ id, order }) => api(`/admin/questions/${id}`, { method: "PATCH", body: JSON.stringify({ order }) })));
+      if (editingLesson) {
+        cancelEditLesson();
+      } else {
         formEl.reset();
-        setTheoryDraft("");
-        setTheoryPreview(false);
+        setSequence([{ kind: "step", tempId: "new-0", title: "", body: "" }]);
       }
       await loadAll();
     } catch (err) {
@@ -609,6 +672,7 @@ export default function AdminClient() {
   }
 
   async function finishTournament(id: string) {
+    if (!window.confirm("Завершить турнир? После завершения участники больше не смогут отправлять ответы.")) return;
     await api(`/admin/tournaments/${id}/finish`, { method: "POST" });
     setNotice("Турнир завершён");
     await loadAll();
@@ -813,33 +877,86 @@ export default function AdminClient() {
                 </select>
                 <input name="title" required placeholder="Название" defaultValue={editingLesson?.title ?? ""} className={inputClass()} />
                 <input name="summary" placeholder="Краткое описание" defaultValue={editingLesson?.summary ?? ""} className={inputClass()} />
-                <div>
-                  <div className="mb-1.5 flex items-center justify-between gap-3">
-                    <span className="text-[12px] font-bold">Теория (поддерживается markdown: **жирный**, таблицы, списки)</span>
-                    <button
-                      type="button"
-                      onClick={() => setTheoryPreview((current) => !current)}
-                      className="text-[11.5px] font-bold text-[#16a34a]"
-                    >
+
+                <div className="rounded-[10px] border border-[rgba(21,23,28,.12)] p-3">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <span className="text-[12px] font-bold">
+                      Шаги урока <span className="font-medium text-[#858990]">· каждый шаг открывается по кнопке «Далее», между шагами можно вставить мини-проверку</span>
+                    </span>
+                    <button type="button" onClick={() => setTheoryPreview((current) => !current)} className="shrink-0 text-[11.5px] font-bold text-[#16a34a]">
                       {theoryPreview ? "Редактировать" : "Предпросмотр"}
                     </button>
                   </div>
-                  {theoryPreview ? (
-                    <div className="rounded-[10px] border border-[rgba(21,23,28,.14)] bg-[#fbfaf6] px-3.5 py-3">
-                      <MarkdownContent content={theoryDraft || "_Пусто_"} />
-                    </div>
-                  ) : (
-                    <textarea
-                      name="theory"
-                      required
-                      placeholder="Теория"
-                      rows={10}
-                      value={theoryDraft}
-                      onChange={(event) => setTheoryDraft(event.target.value)}
-                      className={inputClass("font-mono text-[12.5px]")}
-                    />
+
+                  <div className="grid gap-2.5">
+                    {sequence.map((block, index) => (
+                      <div key={block.kind === "step" ? block.tempId : block.questionId} className="rounded-[8px] border border-[rgba(21,23,28,.1)] bg-[#fbfaf6] p-3">
+                        <div className="mb-2 flex items-center gap-2">
+                          <span className="rounded-[5px] bg-[#f1f2f3] px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-[.04em] text-[#6b6f76]">
+                            {block.kind === "step" ? `Шаг ${sequence.slice(0, index + 1).filter((b) => b.kind === "step").length}` : "Мини-проверка"}
+                          </span>
+                          <span className="ml-auto flex gap-1">
+                            <button type="button" title="Вверх" disabled={index === 0} onClick={() => moveInSequence(index, -1)} className="h-6 w-6 text-[12px] text-[#6b6f76] disabled:opacity-25">▲</button>
+                            <button type="button" title="Вниз" disabled={index === sequence.length - 1} onClick={() => moveInSequence(index, 1)} className="h-6 w-6 text-[12px] text-[#6b6f76] disabled:opacity-25">▼</button>
+                            <button type="button" title="Удалить" onClick={() => removeFromSequence(index)} className="h-6 w-6 text-[14px] text-[#858990]">×</button>
+                          </span>
+                        </div>
+                        {block.kind === "step" ? (
+                          <div className="grid gap-1.5">
+                            <input
+                              value={block.title}
+                              onChange={(event) => updateStepInSequence(block.tempId, { title: event.target.value })}
+                              placeholder="Заголовок шага (необязательно)"
+                              className={inputClass()}
+                            />
+                            {theoryPreview ? (
+                              <div className="rounded-[10px] border border-[rgba(21,23,28,.14)] bg-white px-3.5 py-3">
+                                <MarkdownContent content={block.body || "_Пусто_"} />
+                              </div>
+                            ) : (
+                              <textarea
+                                value={block.body}
+                                onChange={(event) => updateStepInSequence(block.tempId, { body: event.target.value })}
+                                placeholder="Текст шага (markdown)"
+                                rows={5}
+                                className={inputClass("resize-y font-mono text-[12.5px]")}
+                              />
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-[12.5px] font-medium">
+                            {questions.find((question) => question.id === block.questionId)?.title ?? "Задание удалено"}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                    <button type="button" onClick={addStep} className="text-[12px] font-bold text-[#15803d]">+ Добавить шаг</button>
+                    {editingLesson && (
+                      <select
+                        value=""
+                        onChange={(event) => {
+                          addQuestionToSequence(event.target.value);
+                          event.target.value = "";
+                        }}
+                        className={inputClass("h-9 max-w-[220px] text-[12px]")}
+                      >
+                        <option value="">+ Вставить мини-проверку…</option>
+                        {questions
+                          .filter((question) => question.lesson_id === editingLesson.id && !sequence.some((block) => block.kind === "question" && block.questionId === question.id))
+                          .map((question) => (
+                            <option key={question.id} value={question.id}>{question.title}</option>
+                          ))}
+                      </select>
+                    )}
+                  </div>
+                  {!editingLesson && (
+                    <p className="mt-2 text-[11.5px] text-[#858990]">Задания можно вставить между шагами после того, как урок будет создан и для него добавлены задания в «Банке заданий».</p>
                   )}
                 </div>
+
                 <div className="grid grid-cols-3 gap-2">
                   <input name="order" type="number" defaultValue={editingLesson?.order ?? lessons.length + 1} className={inputClass()} />
                   <input name="pass_percent" type="number" defaultValue={editingLesson?.pass_percent ?? 70} className={inputClass()} />
