@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { api, matchingInitialValue, sequenceInitialOrder, toApiAnswer, type AnswerValue, type PracticeCheckResult, type Question } from "@/lib/api";
+import { api, groupSortInitialValue, isNumberArray, matchingInitialValue, sequenceInitialOrder, toApiAnswer, type AnswerValue, type PracticeCheckResult, type Question } from "@/lib/api";
+import AdvancedQuestionInput, { hasAdvancedAnswer, initialAdvancedValue, isAdvancedQuestion } from "@/components/AdvancedQuestionInput";
+import GroupSort from "@/components/GroupSort";
 import MatchingPairs from "@/components/MatchingPairs";
 import SequenceOrder from "@/components/SequenceOrder";
 
@@ -122,7 +124,7 @@ export default function Practice() {
           {q.type === "sequence" && q.options && (
             <SequenceOrder
               options={q.options}
-              order={Array.isArray(selected) ? selected : sequenceInitialOrder(q)}
+              order={isNumberArray(selected) ? selected : sequenceInitialOrder(q)}
               disabled={Boolean(result)}
               onChange={setSelected}
             />
@@ -131,10 +133,33 @@ export default function Practice() {
           {q.type === "matching" && q.options && (
             <MatchingPairs
               question={q}
-              value={Array.isArray(selected) ? selected : matchingInitialValue(q)}
+              value={isNumberArray(selected) ? selected : matchingInitialValue(q)}
               disabled={Boolean(result)}
               onChange={setSelected}
             />
+          )}
+
+          {q.type === "group_sort" && q.options && (
+            <GroupSort
+              question={q}
+              value={isNumberArray(selected) ? selected : groupSortInitialValue(q)}
+              disabled={Boolean(result)}
+              onChange={setSelected}
+            />
+          )}
+
+          {isAdvancedQuestion(q.type) && (
+            <AdvancedQuestionInput question={q} value={selected} disabled={Boolean(result)} onChange={setSelected} />
+          )}
+
+          {q.type === "multiple_choice" && q.options?.map((text, optionIndex) => {
+            const values = isNumberArray(selected) ? selected : [];
+            const active = values.includes(optionIndex);
+            return <button type="button" key={text} disabled={Boolean(result)} aria-pressed={active} onClick={() => setSelected(active ? values.filter((item) => item !== optionIndex) : [...values, optionIndex])} className="block w-full rounded-[13px] border-[1.5px] px-4 py-3.5 text-left text-[13.5px] font-medium mb-2.5" style={{ borderColor: active ? "#16a34a" : "rgba(21,23,28,.08)", background: active ? "rgba(22,163,74,.06)" : "#f6f4ee" }}>{text}</button>;
+          })}
+
+          {(q.type === "short_text" || q.type === "number") && (
+            <input value={typeof selected === "string" ? selected : ""} disabled={Boolean(result)} onChange={(event) => setSelected(event.target.value)} inputMode={q.type === "number" ? "decimal" : "text"} className="h-11 w-full rounded-[13px] border border-[rgba(21,23,28,.08)] bg-[#f6f4ee] px-4 text-[13.5px] outline-none focus:border-[#16a34a]" placeholder={q.type === "number" ? "Введите число" : "Введите ответ"} />
           )}
 
           {q.type === "code_text" && (
@@ -214,11 +239,15 @@ export default function Practice() {
 function initialInteractiveValue(question: Question | undefined): AnswerValue | undefined {
   if (question?.type === "sequence") return sequenceInitialOrder(question);
   if (question?.type === "matching") return matchingInitialValue(question);
+  if (question?.type === "group_sort") return groupSortInitialValue(question);
+  if (question && isAdvancedQuestion(question.type)) return initialAdvancedValue(question);
   return undefined;
 }
 
 function hasPracticeAnswer(question: Question, value: AnswerValue | undefined) {
-  if (question.type === "matching") return Array.isArray(value) && value.length === (question.options?.length ?? 0) && value.every((item) => item >= 0);
-  if (question.type === "sequence") return Array.isArray(value) && value.length === (question.options?.length ?? 0);
+  if (isAdvancedQuestion(question.type)) return hasAdvancedAnswer(question, value);
+  if (question.type === "matching") return isNumberArray(value) && value.length === (question.options?.length ?? 0) && value.every((item) => item >= 0);
+  if (question.type === "group_sort") return isNumberArray(value) && value.length === (question.options?.length ?? 0) && value.every((item) => item >= 0);
+  if (question.type === "sequence") return isNumberArray(value) && value.length === (question.options?.length ?? 0);
   return value !== undefined && value !== "";
 }

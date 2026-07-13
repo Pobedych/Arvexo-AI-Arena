@@ -92,6 +92,67 @@ def _validate_question_configuration(question_type: QuestionType, options: list[
             raise HTTPException(status_code=400, detail="Matching needs at least two complete pairs")
         if matches != list(range(len(options))):
             raise HTTPException(status_code=400, detail="Matching answer must contain every configured pair")
+    elif question_type == QuestionType.group_sort:
+        categories = (configuration or {}).get("categories") or []
+        groups = correct_answer.get("groups") or []
+        if not options or len(options) < 2 or any(not str(item).strip() for item in options):
+            raise HTTPException(status_code=400, detail="Group sort needs at least two non-empty cards")
+        if len(categories) < 2 or any(not str(item).strip() for item in categories):
+            raise HTTPException(status_code=400, detail="Group sort needs at least two non-empty categories")
+        if len({str(item).strip().lower() for item in categories}) != len(categories):
+            raise HTTPException(status_code=400, detail="Group sort categories must be unique")
+        if len(groups) != len(options) or any(not isinstance(group, int) or isinstance(group, bool) or group < 0 or group >= len(categories) for group in groups):
+            raise HTTPException(status_code=400, detail="Every group sort card must have a valid category")
+    elif question_type == QuestionType.fill_blanks:
+        template = str((configuration or {}).get("template") or "")
+        blanks = correct_answer.get("blanks") or []
+        if not template.strip() or template.count("___") < 1:
+            raise HTTPException(status_code=400, detail="Fill blanks needs a template with at least one ___ placeholder")
+        if len(blanks) != template.count("___") or any(not str(item).strip() for item in blanks):
+            raise HTTPException(status_code=400, detail="Fill blanks needs one answer for every placeholder")
+    elif question_type == QuestionType.table_select:
+        columns = (configuration or {}).get("columns") or []
+        rows = (configuration or {}).get("rows") or []
+        cells = correct_answer.get("cells") or []
+        if not columns or not rows or any(not isinstance(row, list) or len(row) != len(columns) for row in rows):
+            raise HTTPException(status_code=400, detail="Table select needs columns and equally sized rows")
+        valid_cells = {f"{row_index}:{column_index}" for row_index in range(len(rows)) for column_index in range(len(columns))}
+        if not cells or any(str(cell) not in valid_cells for cell in cells):
+            raise HTTPException(status_code=400, detail="Table select needs at least one valid answer cell")
+    elif question_type == QuestionType.code_order:
+        if not options or len(options) < 2 or any(not str(option).strip() for option in options):
+            raise HTTPException(status_code=400, detail="Code order needs at least two non-empty lines")
+        if correct_answer.get("order") != list(range(len(options))):
+            raise HTTPException(status_code=400, detail="Code order answer must contain every configured line")
+    elif question_type == QuestionType.code_output:
+        if not str((configuration or {}).get("code") or "").strip() or not str(correct_answer.get("text") or "").strip():
+            raise HTTPException(status_code=400, detail="Code output needs a code snippet and expected output")
+    elif question_type == QuestionType.code_fix:
+        code = correct_answer.get("code")
+        accepted_codes = correct_answer.get("accepted_codes") or []
+        if not str((configuration or {}).get("code") or "").strip():
+            raise HTTPException(status_code=400, detail="Code fix needs broken starter code")
+        if not str(code or "").strip() and not any(str(item or "").strip() for item in accepted_codes):
+            raise HTTPException(status_code=400, detail="Code fix needs an expected fixed solution")
+    elif question_type in (QuestionType.image_hotspot, QuestionType.graph_point):
+        point = correct_answer.get("point") or []
+        if len(point) != 2 or any(not isinstance(value, (int, float)) or isinstance(value, bool) for value in point):
+            raise HTTPException(status_code=400, detail="Point question needs numeric x and y coordinates")
+        if question_type == QuestionType.image_hotspot and not str((configuration or {}).get("image_url") or "").strip():
+            raise HTTPException(status_code=400, detail="Image hotspot needs an image URL")
+        if question_type == QuestionType.graph_point:
+            required = ("x_min", "x_max", "y_min", "y_max")
+            if any(not isinstance((configuration or {}).get(key), (int, float)) for key in required):
+                raise HTTPException(status_code=400, detail="Graph point needs numeric axis boundaries")
+    elif question_type in (QuestionType.number_line, QuestionType.slider_experiment):
+        config = configuration or {}
+        if any(not isinstance(config.get(key), (int, float)) or isinstance(config.get(key), bool) for key in ("min", "max", "step")):
+            raise HTTPException(status_code=400, detail="Range question needs numeric min, max and step")
+        if config["min"] >= config["max"] or config["step"] <= 0:
+            raise HTTPException(status_code=400, detail="Range question boundaries or step are invalid")
+        number = correct_answer.get("number")
+        if not isinstance(number, (int, float)) or isinstance(number, bool) or number < config["min"] or number > config["max"]:
+            raise HTTPException(status_code=400, detail="Range question answer must be inside its boundaries")
     elif question_type == QuestionType.code_text:
         code = correct_answer.get("code")
         accepted_codes = correct_answer.get("accepted_codes") or []

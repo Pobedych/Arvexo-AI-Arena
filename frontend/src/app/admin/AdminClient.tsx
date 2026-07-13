@@ -191,7 +191,28 @@ const typeLabels: Record<string, string> = {
   number: "Число",
   sequence: "Последовательность",
   matching: "Сопоставление",
+  group_sort: "Распределение по категориям",
+  fill_blanks: "Заполнение пропусков",
+  table_select: "Выбор ячеек таблицы",
+  code_order: "Сборка кода из строк",
+  code_output: "Результат выполнения кода",
+  code_fix: "Исправление кода",
+  image_hotspot: "Область изображения",
+  graph_point: "Точка на графике",
+  number_line: "Числовая прямая",
+  slider_experiment: "Эксперимент с параметром",
   code_text: "Код — свободный ввод",
+};
+
+const advancedConfigHints: Record<string, string> = {
+  fill_blanks: '{"template":"Модель учится на ___, а проверяется на ___."}',
+  table_select: '{"columns":["Объект","Тип"],"rows":[["Возраст","Число"],["Город","Категория"]]}',
+  code_output: '{"code":"print(2 + 2)"}',
+  code_fix: '{"code":"if ready\n    start()"}',
+  image_hotspot: '{"image_url":"https://example.com/image.png"}',
+  graph_point: '{"x_min":-5,"x_max":5,"y_min":-5,"y_max":5}',
+  number_line: '{"min":-10,"max":10,"step":1}',
+  slider_experiment: '{"min":0,"max":100,"step":5,"unit":"%","observation":"При {value}% меняется результат"}',
 };
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
@@ -233,6 +254,9 @@ export default function AdminClient() {
   const [correctOptions, setCorrectOptions] = useState<number[]>([0]);
   const [correctText, setCorrectText] = useState("");
   const [matchingRightValues, setMatchingRightValues] = useState(["", "", "", ""]);
+  const [groupCategories, setGroupCategories] = useState(["", ""]);
+  const [groupAssignments, setGroupAssignments] = useState([-1, -1, -1, -1]);
+  const [advancedConfigText, setAdvancedConfigText] = useState("{}");
   const [numberTolerance, setNumberTolerance] = useState("0");
   const [tournamentQuestionSearch, setTournamentQuestionSearch] = useState("");
   const [selectedQuestionIds, setSelectedQuestionIds] = useState<string[]>([]);
@@ -388,6 +412,7 @@ export default function AdminClient() {
     setQuestionType(question.type);
     const options = question.options ?? [];
     setOptionValues(options.length ? [...options] : ["", "", "", ""]);
+    setAdvancedConfigText(JSON.stringify(question.configuration ?? {}, null, 2));
     if (question.type === "single_choice") {
       setCorrectOptions([Number((question.correct_answer as { option?: number }).option ?? 0)]);
     } else if (question.type === "multiple_choice") {
@@ -401,7 +426,30 @@ export default function AdminClient() {
     } else {
       setMatchingRightValues(["", "", "", ""]);
     }
-    if (question.type === "short_text") {
+    if (question.type === "group_sort") {
+      const categories = (question.configuration as { categories?: string[] } | null)?.categories ?? [];
+      const groups = (question.correct_answer as { groups?: number[] }).groups ?? [];
+      setGroupCategories(categories.length ? [...categories] : ["", ""]);
+      setGroupAssignments(options.map((_, index) => Number(groups[index] ?? -1)));
+    } else {
+      setGroupCategories(["", ""]);
+      setGroupAssignments([-1, -1, -1, -1]);
+    }
+    if (question.type === "fill_blanks") {
+      setCorrectText(JSON.stringify((question.correct_answer as { blanks?: string[] }).blanks ?? [], null, 2));
+    } else if (question.type === "table_select") {
+      setCorrectText(JSON.stringify((question.correct_answer as { cells?: string[] }).cells ?? [], null, 2));
+    } else if (question.type === "image_hotspot" || question.type === "graph_point") {
+      setCorrectText(JSON.stringify((question.correct_answer as { point?: number[] }).point ?? [], null, 2));
+      setNumberTolerance(String(question.tolerance ?? 0));
+    } else if (question.type === "number_line" || question.type === "slider_experiment") {
+      setCorrectText(String((question.correct_answer as { number?: number }).number ?? ""));
+      setNumberTolerance(String(question.tolerance ?? 0));
+    } else if (question.type === "code_output") {
+      setCorrectText(String((question.correct_answer as { text?: string }).text ?? ""));
+    } else if (question.type === "code_fix") {
+      setCorrectText(String((question.correct_answer as { code?: string }).code ?? ""));
+    } else if (question.type === "short_text") {
       setCorrectText(String((question.correct_answer as { text?: string }).text ?? ""));
     } else if (question.type === "code_text") {
       setCorrectText(String((question.correct_answer as { code?: string }).code ?? ""));
@@ -423,6 +471,9 @@ export default function AdminClient() {
     setCorrectOptions([0]);
     setCorrectText("");
     setMatchingRightValues(["", "", "", ""]);
+    setGroupCategories(["", ""]);
+    setGroupAssignments([-1, -1, -1, -1]);
+    setAdvancedConfigText("{}");
     setNumberTolerance("0");
   }
 
@@ -534,6 +585,7 @@ export default function AdminClient() {
     const lastOptionIndex = optionValues.findLastIndex((item) => item.trim());
     const options = optionValues.slice(0, lastOptionIndex + 1).map((item) => item.trim());
     let correctAnswer: Record<string, unknown>;
+    let configuration: Record<string, unknown> | null = null;
 
     if (questionType === "single_choice") {
       if (options.length < 2 || options.some((item) => !item) || correctOptions[0] === undefined || correctOptions[0] >= options.length) {
@@ -548,9 +600,9 @@ export default function AdminClient() {
         return;
       }
       correctAnswer = { options: validAnswers };
-    } else if (questionType === "sequence") {
+    } else if (questionType === "sequence" || questionType === "code_order") {
       if (options.length < 2 || options.some((item) => !item)) {
-        setError("Добавьте минимум два элемента последовательности");
+        setError(questionType === "code_order" ? "Добавьте минимум две строки кода" : "Добавьте минимум два элемента последовательности");
         return;
       }
       correctAnswer = { order: options.map((_, index) => index) };
@@ -561,6 +613,64 @@ export default function AdminClient() {
         return;
       }
       correctAnswer = { matches: options.map((_, index) => index) };
+      configuration = { right };
+    } else if (questionType === "group_sort") {
+      const lastCategoryIndex = groupCategories.findLastIndex((item) => item.trim());
+      const categories = groupCategories.slice(0, lastCategoryIndex + 1).map((item) => item.trim());
+      const groups = groupAssignments.slice(0, options.length);
+      if (options.length < 2 || options.some((item) => !item)) {
+        setError("Добавьте минимум две карточки для распределения");
+        return;
+      }
+      if (categories.length < 2 || categories.some((item) => !item) || new Set(categories.map((item) => item.toLowerCase())).size !== categories.length) {
+        setError("Добавьте минимум две разные категории");
+        return;
+      }
+      if (groups.length !== options.length || groups.some((group) => group < 0 || group >= categories.length)) {
+        setError("Выберите правильную категорию для каждой карточки");
+        return;
+      }
+      correctAnswer = { groups };
+      configuration = { categories };
+    } else if (Object.hasOwn(advancedConfigHints, questionType)) {
+      try {
+        const parsed = JSON.parse(advancedConfigText) as unknown;
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("not an object");
+        configuration = parsed as Record<string, unknown>;
+      } catch {
+        setError("Конфигурация должна быть корректным JSON-объектом");
+        return;
+      }
+      if (questionType === "fill_blanks" || questionType === "table_select" || questionType === "image_hotspot" || questionType === "graph_point") {
+        try {
+          const parsedAnswer = JSON.parse(correctText) as unknown;
+          if (!Array.isArray(parsedAnswer)) throw new Error("not an array");
+          if (questionType === "fill_blanks") correctAnswer = { blanks: parsedAnswer };
+          else if (questionType === "table_select") correctAnswer = { cells: parsedAnswer };
+          else correctAnswer = { point: parsedAnswer };
+        } catch {
+          setError("Правильный ответ для этого типа должен быть JSON-массивом");
+          return;
+        }
+      } else if (questionType === "number_line" || questionType === "slider_experiment") {
+        if (correctText.trim() === "" || Number.isNaN(Number(correctText))) {
+          setError("Укажите правильное числовое значение");
+          return;
+        }
+        correctAnswer = { number: Number(correctText) };
+      } else if (questionType === "code_output") {
+        if (!correctText.trim()) {
+          setError("Укажите ожидаемый результат программы");
+          return;
+        }
+        correctAnswer = { text: correctText };
+      } else {
+        if (!correctText.trim()) {
+          setError("Добавьте исправленный вариант кода");
+          return;
+        }
+        correctAnswer = { code: correctText };
+      }
     } else if (questionType === "code_text") {
       if (!correctText.trim()) {
         setError("Добавьте эталонное решение");
@@ -590,9 +700,9 @@ export default function AdminClient() {
         prompt: form.get("prompt"),
         type: questionType,
         options: options.length ? options : null,
-        configuration: questionType === "matching" ? { right: matchingRightValues.slice(0, options.length).map((item) => item.trim()) } : null,
+        configuration,
         correct_answer: correctAnswer,
-        tolerance: questionType === "number" ? Number(numberTolerance || 0) : null,
+        tolerance: ["number", "image_hotspot", "graph_point", "number_line", "slider_experiment"].includes(questionType) ? Number(numberTolerance || 0) : null,
         points: Number(form.get("points") || 1),
         explanation: form.get("explanation"),
         difficulty: form.get("difficulty"),
@@ -611,6 +721,9 @@ export default function AdminClient() {
         setCorrectOptions([0]);
         setCorrectText("");
         setMatchingRightValues(["", "", "", ""]);
+        setGroupCategories(["", ""]);
+        setGroupAssignments([-1, -1, -1, -1]);
+        setAdvancedConfigText("{}");
         setNumberTolerance("0");
         setNotice("Задание создано");
       }
@@ -1028,6 +1141,9 @@ export default function AdminClient() {
                       setCorrectOptions([0]);
                       setCorrectText("");
                       setMatchingRightValues(["", "", "", ""]);
+                      setGroupCategories(["", ""]);
+                      setGroupAssignments([-1, -1, -1, -1]);
+                      setAdvancedConfigText(advancedConfigHints[event.target.value] ?? "{}");
                     }}
                     className={inputClass()}
                   >
@@ -1035,19 +1151,19 @@ export default function AdminClient() {
                   </select>
                 </Field>
 
-                {(questionType === "single_choice" || questionType === "multiple_choice" || questionType === "sequence") && (
+                {(questionType === "single_choice" || questionType === "multiple_choice" || questionType === "sequence" || questionType === "code_order") && (
                   <fieldset className="grid gap-2">
                     <legend className="mb-1 text-[12px] font-bold">
-                      {questionType === "sequence" ? "Элементы в правильном порядке" : "Варианты ответа"}
+                      {questionType === "sequence" ? "Элементы в правильном порядке" : questionType === "code_order" ? "Строки кода в правильном порядке" : "Варианты ответа"}
                       <span className="font-medium text-[#858990]">
-                        {questionType === "sequence" ? " · ученику они будут показаны перемешанными" : " · отметьте правильные"}
+                        {questionType === "sequence" || questionType === "code_order" ? " · ученику они будут показаны перемешанными" : " · отметьте правильные"}
                       </span>
                     </legend>
                     {optionValues.map((option, index) => {
                       const checked = correctOptions.includes(index);
                       return (
                         <div key={index} className="grid grid-cols-[32px_1fr_32px] items-center gap-2">
-                          {questionType === "sequence" ? (
+                          {questionType === "sequence" || questionType === "code_order" ? (
                             <span className="grid h-6 w-6 place-items-center justify-self-center rounded-full bg-[#eef7ec] text-[11px] font-extrabold text-[#15803d]">{index + 1}</span>
                           ) : (
                             <input
@@ -1061,8 +1177,8 @@ export default function AdminClient() {
                           <input
                             value={option}
                             onChange={(event) => setOptionValues((current) => current.map((item, itemIndex) => itemIndex === index ? event.target.value : item))}
-                            placeholder={`Вариант ${index + 1}`}
-                            className={inputClass()}
+                            placeholder={questionType === "code_order" ? `Строка ${index + 1}` : `Вариант ${index + 1}`}
+                            className={inputClass(questionType === "code_order" ? "font-mono" : "")}
                           />
                           <button
                             type="button"
@@ -1121,6 +1237,130 @@ export default function AdminClient() {
                       }}
                       className="mt-1 w-fit text-[12px] font-bold text-[#15803d]"
                     >+ Добавить пару</button>
+                  </fieldset>
+                )}
+
+                {questionType === "group_sort" && (
+                  <fieldset className="grid gap-4 rounded-[16px] border border-[rgba(21,23,28,.08)] bg-[#f8f7f2] p-4">
+                    <legend className="px-1 text-[12px] font-bold">
+                      Карточки и категории <span className="font-medium text-[#858990]">· задайте правильную группу для каждой карточки</span>
+                    </legend>
+                    <div className="grid gap-2">
+                      <span className="text-[11px] font-extrabold uppercase tracking-[.08em] text-[#6b6f76]">Категории</span>
+                      {groupCategories.map((category, index) => (
+                        <div key={index} className="grid grid-cols-[1fr_32px] items-center gap-2">
+                          <input
+                            value={category}
+                            onChange={(event) => setGroupCategories((current) => current.map((item, itemIndex) => itemIndex === index ? event.target.value : item))}
+                            placeholder={`Категория ${index + 1}`}
+                            className={inputClass()}
+                          />
+                          <button
+                            type="button"
+                            title="Удалить категорию"
+                            disabled={groupCategories.length <= 2}
+                            onClick={() => {
+                              setGroupCategories((current) => current.filter((_, itemIndex) => itemIndex !== index));
+                              setGroupAssignments((current) => current.map((group) => group === index ? -1 : group > index ? group - 1 : group));
+                            }}
+                            className="h-8 w-8 text-[18px] text-[#858990] disabled:opacity-25"
+                          >×</button>
+                        </div>
+                      ))}
+                      <button type="button" onClick={() => setGroupCategories((current) => [...current, ""])} className="mt-1 w-fit text-[12px] font-bold text-[#15803d]">+ Добавить категорию</button>
+                    </div>
+
+                    <div className="grid gap-2">
+                      <span className="text-[11px] font-extrabold uppercase tracking-[.08em] text-[#6b6f76]">Карточки</span>
+                      {optionValues.map((card, index) => (
+                        <div key={index} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(150px,.65fr)_32px] sm:items-center">
+                          <input
+                            value={card}
+                            onChange={(event) => setOptionValues((current) => current.map((item, itemIndex) => itemIndex === index ? event.target.value : item))}
+                            placeholder={`Карточка ${index + 1}`}
+                            className={inputClass()}
+                          />
+                          <select
+                            value={groupAssignments[index] ?? -1}
+                            onChange={(event) => setGroupAssignments((current) => current.map((item, itemIndex) => itemIndex === index ? Number(event.target.value) : item))}
+                            className={inputClass()}
+                            aria-label={`Правильная категория карточки ${index + 1}`}
+                          >
+                            <option value={-1}>Выберите категорию</option>
+                            {groupCategories.map((category, categoryIndex) => (
+                              <option key={categoryIndex} value={categoryIndex}>{category.trim() || `Категория ${categoryIndex + 1}`}</option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            title="Удалить карточку"
+                            disabled={optionValues.length <= 2}
+                            onClick={() => {
+                              setOptionValues((current) => current.filter((_, itemIndex) => itemIndex !== index));
+                              setGroupAssignments((current) => current.filter((_, itemIndex) => itemIndex !== index));
+                            }}
+                            className="h-8 w-8 text-[18px] text-[#858990] disabled:opacity-25"
+                          >×</button>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOptionValues((current) => [...current, ""]);
+                          setGroupAssignments((current) => [...current, -1]);
+                        }}
+                        className="mt-1 w-fit text-[12px] font-bold text-[#15803d]"
+                      >+ Добавить карточку</button>
+                    </div>
+                  </fieldset>
+                )}
+
+                {Object.hasOwn(advancedConfigHints, questionType) && (
+                  <fieldset className="grid gap-3 rounded-[16px] border border-[rgba(21,23,28,.08)] bg-[#f8f7f2] p-4">
+                    <legend className="px-1 text-[12px] font-bold">Настройка интерактивного шаблона</legend>
+                    <Field label="Конфигурация" hint="JSON — пример уже подставлен в подсказке">
+                      <textarea
+                        value={advancedConfigText}
+                        onChange={(event) => setAdvancedConfigText(event.target.value)}
+                        rows={questionType === "table_select" ? 8 : 5}
+                        spellCheck={false}
+                        placeholder={advancedConfigHints[questionType]}
+                        className={inputClass("resize-y font-mono text-[12px]")}
+                      />
+                    </Field>
+
+                    {(questionType === "fill_blanks" || questionType === "table_select" || questionType === "image_hotspot" || questionType === "graph_point" || questionType === "code_fix") && (
+                      <Field
+                        label={questionType === "code_fix" ? "Исправленный код" : "Правильный ответ"}
+                        hint={questionType === "fill_blanks" ? 'JSON-массив: ["ответ 1","ответ 2"]' : questionType === "table_select" ? 'ячейки: ["0:1","1:0"]' : questionType === "code_fix" ? "код не запускается" : "координаты: [x,y]"}
+                      >
+                        <textarea
+                          value={correctText}
+                          onChange={(event) => setCorrectText(event.target.value)}
+                          rows={questionType === "code_fix" ? 9 : 4}
+                          spellCheck={questionType !== "code_fix"}
+                          className={inputClass(`resize-y ${questionType === "code_fix" ? "font-mono" : ""}`)}
+                        />
+                      </Field>
+                    )}
+
+                    {(questionType === "code_output" || questionType === "number_line" || questionType === "slider_experiment") && (
+                      <Field label={questionType === "code_output" ? "Ожидаемый вывод" : "Правильное значение"}>
+                        <input
+                          type={questionType === "code_output" ? "text" : "number"}
+                          step={questionType === "code_output" ? undefined : "any"}
+                          value={correctText}
+                          onChange={(event) => setCorrectText(event.target.value)}
+                          className={inputClass(questionType === "code_output" ? "font-mono" : "")}
+                        />
+                      </Field>
+                    )}
+
+                    {(questionType === "image_hotspot" || questionType === "graph_point" || questionType === "number_line" || questionType === "slider_experiment") && (
+                      <Field label={questionType === "image_hotspot" ? "Радиус правильной области" : "Допустимая погрешность"} hint={questionType === "image_hotspot" ? "доля размера изображения, например 0.08" : undefined}>
+                        <input type="number" min="0" step="any" value={numberTolerance} onChange={(event) => setNumberTolerance(event.target.value)} className={inputClass()} />
+                      </Field>
+                    )}
                   </fieldset>
                 )}
 

@@ -2,11 +2,11 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { api, matchingInitialValue, sequenceInitialOrder, type Attempt, type Question, type Tournament } from "@/lib/api";
+import { api, groupSortInitialValue, isNumberArray, matchingInitialValue, sequenceInitialOrder, toApiAnswer, type AnswerValue, type Attempt, type Question, type Tournament } from "@/lib/api";
+import AdvancedQuestionInput, { initialAdvancedValue, isAdvancedQuestion } from "@/components/AdvancedQuestionInput";
+import GroupSort from "@/components/GroupSort";
 import MatchingPairs from "@/components/MatchingPairs";
 import SequenceOrder from "@/components/SequenceOrder";
-
-type AnswerValue = number | number[] | string;
 
 function formatTime(totalSeconds: number) {
   const m = Math.floor(totalSeconds / 60);
@@ -53,8 +53,18 @@ function TournamentLive() {
         setAttempt(attemptData);
         setAnswers(Object.fromEntries(
           attemptData.questions
-            .filter((question) => question.type === "sequence" || question.type === "matching")
-            .map((question) => [question.id, question.type === "sequence" ? sequenceInitialOrder(question) : matchingInitialValue(question)]),
+            .filter((question) => question.type === "sequence" || question.type === "matching" || question.type === "group_sort" || isAdvancedQuestion(question.type))
+            .map((question) => [
+              question.id,
+              question.type === "sequence"
+                ? sequenceInitialOrder(question)
+                : question.type === "matching"
+                  ? matchingInitialValue(question)
+                  : question.type === "group_sort"
+                    ? groupSortInitialValue(question)
+                    : initialAdvancedValue(question),
+            ] as [string, AnswerValue | undefined])
+            .filter((entry): entry is [string, AnswerValue] => entry[1] !== undefined),
         ));
       } catch (err) {
         setError(err instanceof Error ? err.message : "Не удалось открыть попытку");
@@ -228,13 +238,13 @@ function AnswerControl({ question, value, onChange }: { question: Question; valu
   }
   if (question.type === "multiple_choice") {
     return question.options?.map((text, index) => {
-      const selected = Array.isArray(value) && value.includes(index);
+      const selected = isNumberArray(value) && value.includes(index);
       return (
         <Choice
           key={text}
           selected={selected}
           onClick={() => {
-            const current = Array.isArray(value) ? value : [];
+            const current = isNumberArray(value) ? value : [];
             onChange(selected ? current.filter((item) => item !== index) : [...current, index]);
           }}
         >
@@ -247,7 +257,7 @@ function AnswerControl({ question, value, onChange }: { question: Question; valu
     return (
       <SequenceOrder
         options={question.options}
-        order={Array.isArray(value) ? value : sequenceInitialOrder(question)}
+        order={isNumberArray(value) ? value : sequenceInitialOrder(question)}
         onChange={onChange}
       />
     );
@@ -256,10 +266,22 @@ function AnswerControl({ question, value, onChange }: { question: Question; valu
     return (
       <MatchingPairs
         question={question}
-        value={Array.isArray(value) ? value : matchingInitialValue(question)}
+        value={isNumberArray(value) ? value : matchingInitialValue(question)}
         onChange={onChange}
       />
     );
+  }
+  if (question.type === "group_sort" && question.options) {
+    return (
+      <GroupSort
+        question={question}
+        value={isNumberArray(value) ? value : groupSortInitialValue(question)}
+        onChange={onChange}
+      />
+    );
+  }
+  if (isAdvancedQuestion(question.type)) {
+    return <AdvancedQuestionInput question={question} value={value} onChange={onChange} />;
   }
   if (question.type === "code_text") {
     return (
@@ -299,14 +321,4 @@ function Choice({ selected, onClick, children }: { selected: boolean; onClick: (
       {children}
     </button>
   );
-}
-
-function toApiAnswer(question: Question, value: AnswerValue | undefined) {
-  if (question.type === "single_choice") return { option: value };
-  if (question.type === "multiple_choice") return { options: Array.isArray(value) ? value : [] };
-  if (question.type === "number") return { number: Number(value) };
-  if (question.type === "sequence") return { order: Array.isArray(value) ? value : [] };
-  if (question.type === "matching") return { matches: Array.isArray(value) ? value : [] };
-  if (question.type === "code_text") return { code: String(value ?? "") };
-  return { text: String(value ?? "") };
 }

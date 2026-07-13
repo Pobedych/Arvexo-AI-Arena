@@ -41,6 +41,16 @@ class QuestionType(str, enum.Enum):
     number = "number"
     sequence = "sequence"
     matching = "matching"
+    group_sort = "group_sort"
+    fill_blanks = "fill_blanks"
+    table_select = "table_select"
+    code_order = "code_order"
+    code_output = "code_output"
+    code_fix = "code_fix"
+    image_hotspot = "image_hotspot"
+    graph_point = "graph_point"
+    number_line = "number_line"
+    slider_experiment = "slider_experiment"
     code_text = "code_text"
 
 

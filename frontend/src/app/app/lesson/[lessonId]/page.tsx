@@ -5,6 +5,8 @@ import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
   api,
+  groupSortInitialValue,
+  isNumberArray,
   matchingInitialValue,
   sequenceInitialOrder,
   toApiAnswer,
@@ -15,6 +17,8 @@ import {
   type Question,
 } from "@/lib/api";
 import MarkdownContent from "@/components/MarkdownContent";
+import AdvancedQuestionInput, { hasAdvancedAnswer, initialAdvancedValue, isAdvancedQuestion } from "@/components/AdvancedQuestionInput";
+import GroupSort from "@/components/GroupSort";
 import MatchingPairs from "@/components/MatchingPairs";
 import SequenceOrder from "@/components/SequenceOrder";
 
@@ -53,8 +57,18 @@ export default function LessonPage() {
         setLesson(lessonData);
         setAnswers(Object.fromEntries(
           lessonData.questions
-            .filter((question) => question.type === "sequence" || question.type === "matching")
-            .map((question) => [question.id, question.type === "sequence" ? sequenceInitialOrder(question) : matchingInitialValue(question)]),
+            .filter((question) => question.type === "sequence" || question.type === "matching" || question.type === "group_sort" || isAdvancedQuestion(question.type))
+            .map((question) => [
+              question.id,
+              question.type === "sequence"
+                ? sequenceInitialOrder(question)
+                : question.type === "matching"
+                  ? matchingInitialValue(question)
+                  : question.type === "group_sort"
+                    ? groupSortInitialValue(question)
+                    : initialAdvancedValue(question),
+            ] as [string, AnswerValue | undefined])
+            .filter((entry): entry is [string, AnswerValue] => entry[1] !== undefined),
         ));
       })
       .catch((err) => setError(err.message))
@@ -368,14 +382,14 @@ function QuestionInputs({
         </Choice>
       ))}
       {question.type === "multiple_choice" && question.options?.map((text, optionIndex) => {
-        const selected = Array.isArray(value) && value.includes(optionIndex);
+        const selected = isNumberArray(value) && value.includes(optionIndex);
         return (
           <Choice
             key={text}
             selected={selected}
             disabled={disabled}
             onClick={() => {
-              const current = Array.isArray(value) ? value : [];
+              const current = isNumberArray(value) ? value : [];
               onChange(selected ? current.filter((item) => item !== optionIndex) : [...current, optionIndex]);
             }}
           >
@@ -386,7 +400,7 @@ function QuestionInputs({
       {question.type === "sequence" && question.options && (
         <SequenceOrder
           options={question.options}
-          order={Array.isArray(value) ? value : sequenceInitialOrder(question)}
+          order={isNumberArray(value) ? value : sequenceInitialOrder(question)}
           disabled={disabled}
           onChange={onChange}
         />
@@ -394,11 +408,20 @@ function QuestionInputs({
       {question.type === "matching" && question.options && (
         <MatchingPairs
           question={question}
-          value={Array.isArray(value) ? value : matchingInitialValue(question)}
+          value={isNumberArray(value) ? value : matchingInitialValue(question)}
           disabled={disabled}
           onChange={onChange}
         />
       )}
+      {question.type === "group_sort" && question.options && (
+        <GroupSort
+          question={question}
+          value={isNumberArray(value) ? value : groupSortInitialValue(question)}
+          disabled={disabled}
+          onChange={onChange}
+        />
+      )}
+      {isAdvancedQuestion(question.type) && <AdvancedQuestionInput question={question} value={value} disabled={disabled} onChange={onChange} />}
       {["short_text", "number"].includes(question.type) && (
         <input
           disabled={disabled}
@@ -457,8 +480,10 @@ function QuestionBlock({
 }
 
 function hasAnswer(question: Question, value: AnswerValue | undefined) {
-  if (question.type === "matching") return Array.isArray(value) && value.length === (question.options?.length ?? 0) && value.every((item) => item >= 0);
-  if (question.type === "sequence") return Array.isArray(value) && value.length === (question.options?.length ?? 0);
+  if (isAdvancedQuestion(question.type)) return hasAdvancedAnswer(question, value);
+  if (question.type === "matching") return isNumberArray(value) && value.length === (question.options?.length ?? 0) && value.every((item) => item >= 0);
+  if (question.type === "group_sort") return isNumberArray(value) && value.length === (question.options?.length ?? 0) && value.every((item) => item >= 0);
+  if (question.type === "sequence") return isNumberArray(value) && value.length === (question.options?.length ?? 0);
   return value !== undefined && value !== "";
 }
 

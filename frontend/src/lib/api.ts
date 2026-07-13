@@ -52,7 +52,7 @@ export type ActivityDay = {
 export type Question = {
   id: string;
   prompt: string;
-  type: "single_choice" | "multiple_choice" | "short_text" | "number" | "sequence" | "matching" | "code_text" | string;
+  type: "single_choice" | "multiple_choice" | "short_text" | "number" | "sequence" | "matching" | "group_sort" | "fill_blanks" | "table_select" | "code_order" | "code_output" | "code_fix" | "image_hotspot" | "graph_point" | "number_line" | "slider_experiment" | "code_text" | string;
   options: string[] | null;
   configuration?: Record<string, unknown> | null;
   points: number;
@@ -210,15 +210,29 @@ export function formatDuration(seconds: number | null) {
   return `${minutes} мин ${rest.toString().padStart(2, "0")} с`;
 }
 
-export type AnswerValue = number | number[] | string;
+export type AnswerValue = number | number[] | string | string[];
+
+export function isNumberArray(value: AnswerValue | undefined): value is number[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "number");
+}
+
+export function isStringArray(value: AnswerValue | undefined): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
 
 export function toApiAnswer(question: Question, value: AnswerValue | undefined) {
   if (question.type === "single_choice") return { option: value };
-  if (question.type === "multiple_choice") return { options: Array.isArray(value) ? value : [] };
+  if (question.type === "multiple_choice") return { options: isNumberArray(value) ? value : [] };
   if (question.type === "number") return { number: Number(value) };
-  if (question.type === "sequence") return { order: Array.isArray(value) ? value : [] };
-  if (question.type === "matching") return { matches: Array.isArray(value) ? value : [] };
-  if (question.type === "code_text") return { code: String(value ?? "") };
+  if (question.type === "sequence" || question.type === "code_order") return { order: isNumberArray(value) ? value : [] };
+  if (question.type === "matching") return { matches: isNumberArray(value) ? value : [] };
+  if (question.type === "group_sort") return { groups: isNumberArray(value) ? value : [] };
+  if (question.type === "fill_blanks") return { blanks: isStringArray(value) ? value : [] };
+  if (question.type === "table_select") return { cells: isStringArray(value) ? value : [] };
+  if (question.type === "image_hotspot" || question.type === "graph_point") return { point: isNumberArray(value) ? value : [] };
+  if (question.type === "number_line" || question.type === "slider_experiment") return { number: Number(value) };
+  if (question.type === "code_text" || question.type === "code_fix") return { code: String(value ?? "") };
+  if (question.type === "code_output") return { text: String(value ?? "") };
   return { text: String(value ?? "") };
 }
 
@@ -242,5 +256,9 @@ export function deterministicShuffledIndices(id: string, length: number): number
 }
 
 export function matchingInitialValue(question: Question): number[] {
+  return Array.from({ length: question.options?.length ?? 0 }, () => -1);
+}
+
+export function groupSortInitialValue(question: Question): number[] {
   return Array.from({ length: question.options?.length ?? 0 }, () => -1);
 }
