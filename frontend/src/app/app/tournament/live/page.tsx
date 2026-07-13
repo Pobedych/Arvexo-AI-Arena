@@ -185,20 +185,24 @@ function TournamentLive() {
             aria-labelledby="finish-tournament-title"
             aria-describedby="finish-tournament-description"
             onClick={(event) => event.stopPropagation()}
-            className="w-full max-w-[430px] rounded-[24px] border border-white/15 bg-white p-6 shadow-[0_24px_80px_-24px_rgba(21,23,28,.55)]"
+            className="w-full max-w-[440px] rounded-[28px] border border-white/15 bg-white p-6 shadow-[0_24px_80px_-24px_rgba(21,23,28,.55)] sm:p-7"
           >
-            <div className="mb-5 grid h-11 w-11 place-items-center rounded-full bg-[#fff3d6] text-xl" aria-hidden="true">!</div>
-            <h2 id="finish-tournament-title" className="text-[20px] font-extrabold tracking-tight">Завершить турнир?</h2>
-            <p id="finish-tournament-description" className="mt-2 text-[13.5px] leading-relaxed text-[#6b6f76]">
-              После отправки изменить ответы будет нельзя. Убедитесь, что вы ответили на все вопросы.
+            <div className="mb-5 grid h-12 w-12 place-items-center rounded-[16px] bg-[#fff3d6] text-[23px]" aria-hidden="true">🏁</div>
+            <h2 id="finish-tournament-title" className="text-[21px] font-extrabold tracking-tight">Готовы завершить?</h2>
+            <p id="finish-tournament-description" className="mt-2.5 text-[14px] leading-relaxed text-[#6b6f76]">
+              Проверьте ответы перед отправкой. После завершения турнира вернуться к вопросам уже не получится.
             </p>
-            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <div className="mt-4 flex items-center gap-2 rounded-[14px] bg-[#f1f8ef] px-3.5 py-3 text-[12.5px] font-semibold text-[#26733c]">
+              <span className="h-2 w-2 shrink-0 rounded-full bg-[#16a34a]" aria-hidden="true" />
+              Текущий ответ сохранится автоматически
+            </div>
+            <div className="mt-6 flex flex-col gap-2.5 sm:flex-row">
               <button
                 type="button"
                 autoFocus
                 disabled={submitting}
                 onClick={() => setConfirmSubmitOpen(false)}
-                className="h-11 rounded-full bg-[#16a34a] px-5 text-[13px] font-bold text-white hover:bg-[#15803d] disabled:opacity-45"
+                className="h-12 flex-1 rounded-[14px] bg-[#16a34a] px-5 text-[13px] font-bold text-white transition-colors hover:bg-[#15803d] disabled:opacity-45"
               >
                 Продолжить турнир
               </button>
@@ -206,7 +210,7 @@ function TournamentLive() {
                 type="button"
                 disabled={submitting}
                 onClick={submit}
-                className="h-11 rounded-full bg-[#ef2b2d] px-5 text-[13px] font-bold text-white shadow-[0_8px_20px_-10px_rgba(239,43,45,.85)] hover:bg-[#d91f22] disabled:opacity-45"
+                className="h-12 flex-1 rounded-[14px] bg-[#ef2b2d] px-5 text-[13px] font-bold text-white shadow-[0_8px_20px_-10px_rgba(239,43,45,.85)] transition-colors hover:bg-[#d91f22] disabled:opacity-45"
               >
                 {submitting ? "Завершаем..." : "Завершить турнир"}
               </button>

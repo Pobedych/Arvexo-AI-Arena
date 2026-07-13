@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { api, type ApiUser, type Tournament, type Track } from "@/lib/api";
+import { api, type ActivityDay, type ApiUser, type Tournament, type Track } from "@/lib/api";
 
 const settings = [
   { id: "lesson-reminders", label: "Напоминания об уроках", on: true },
@@ -16,15 +16,17 @@ export default function Profile() {
   const [user, setUser] = useState<ApiUser | null>(null);
   const [track, setTrack] = useState<Track | null>(null);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [activity, setActivity] = useState<ActivityDay[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([api<ApiUser>("/auth/me"), api<Track>("/tracks/ai"), api<Tournament[]>("/tournaments")])
-      .then(([userData, trackData, tournamentData]) => {
+    Promise.all([api<ApiUser>("/auth/me"), api<Track>("/tracks/ai"), api<Tournament[]>("/tournaments"), api<ActivityDay[]>("/activity/year")])
+      .then(([userData, trackData, tournamentData, activityData]) => {
         setUser(userData);
         setTrack(trackData);
         setTournaments(tournamentData);
+        setActivity(activityData);
       })
       .catch((err) => setLoadError(err instanceof Error ? err.message : "Не удалось загрузить профиль"))
       .finally(() => setLoading(false));
@@ -90,6 +92,8 @@ export default function Profile() {
         <Stat value={`${finishedTournaments}`} label="турниров завершено" />
       </div>
 
+      <ActivityCalendar activity={activity} />
+
       <div className="grid md:grid-cols-[1.3fr_1fr] gap-3.5 mb-3.5">
         <div className="rounded-[20px] bg-white border border-[rgba(21,23,28,.07)] p-5">
           <p className="text-[#6b6f76] text-[10.5px] font-bold tracking-[.1em] uppercase mb-3.5">Текущий трек</p>
@@ -151,4 +155,72 @@ function Stat({ value, label }: { value: string; label: string }) {
       <span className="text-[11.5px] text-[#6b6f76]">{label}</span>
     </div>
   );
+}
+
+function ActivityCalendar({ activity }: { activity: ActivityDay[] }) {
+  const firstDate = activity[0] ? new Date(`${activity[0].date}T00:00:00`) : null;
+  const leadingDays = firstDate ? (firstDate.getDay() + 6) % 7 : 0;
+  const cells: Array<ActivityDay | null> = [...Array.from({ length: leadingDays }, () => null), ...activity];
+  const weekCount = Math.ceil(cells.length / 7);
+  const monthMarkers = activity.reduce<Array<{ label: string; column: number }>>((markers, day, index) => {
+    const date = new Date(`${day.date}T00:00:00`);
+    const previous = index > 0 ? new Date(`${activity[index - 1].date}T00:00:00`) : null;
+    if (!previous || previous.getMonth() !== date.getMonth()) {
+      markers.push({ label: date.toLocaleDateString("ru-RU", { month: "short" }).replace(".", ""), column: Math.floor((leadingDays + index) / 7) + 1 });
+    }
+    return markers;
+  }, []);
+  const totalActions = activity.reduce((sum, day) => sum + day.count, 0);
+  const activeDays = activity.filter((day) => day.count > 0).length;
+
+  return (
+    <section className="mb-3.5 rounded-[20px] border border-[rgba(21,23,28,.07)] bg-white p-5 sm:p-6">
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="text-[10.5px] font-bold uppercase tracking-[.1em] text-[#6b6f76]">Активность за год</p>
+          <p className="mt-1.5 text-[12.5px] text-[#6b6f76]">Уроки, практика и турниры по дням</p>
+        </div>
+        <div className="flex gap-5 text-right">
+          <div><strong className="block text-[18px]">{totalActions}</strong><span className="text-[10.5px] text-[#6b6f76]">действий</span></div>
+          <div><strong className="block text-[18px] text-[#16a34a]">{activeDays}</strong><span className="text-[10.5px] text-[#6b6f76]">активных дней</span></div>
+        </div>
+      </div>
+      <div className="overflow-x-auto pb-1">
+        <div className="w-max">
+          <div
+            className="mb-2 grid text-[10px] text-[#9a978f]"
+            style={{ gridTemplateColumns: `repeat(${weekCount}, 11px)`, columnGap: "3px" }}
+          >
+            {monthMarkers.map((month) => <span key={`${month.label}-${month.column}`} className="whitespace-nowrap" style={{ gridColumnStart: month.column }}>{month.label}</span>)}
+          </div>
+          <div
+            className="grid w-max grid-flow-col grid-rows-7 gap-[3px]"
+            aria-label={`Активность за год: ${totalActions} действий за ${activeDays} дней`}
+          >
+            {cells.map((day, index) => (
+              <span
+                key={day?.date ?? `empty-${index}`}
+                title={day ? `${day.date}: ${day.count} действий` : undefined}
+                aria-hidden="true"
+                className="h-[11px] w-[11px] rounded-[3px]"
+                style={{ background: activityColor(day?.count ?? 0), visibility: day ? "visible" : "hidden" }}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="mt-3 flex items-center justify-end gap-1 text-[10px] text-[#9a978f]">
+        <span className="mr-1">Меньше</span>
+        {[0, 1, 2, 4].map((count) => <span key={count} aria-hidden="true" className="h-[11px] w-[11px] rounded-[3px]" style={{ background: activityColor(count) }} />)}
+        <span className="ml-1">Больше</span>
+      </div>
+    </section>
+  );
+}
+
+function activityColor(count: number) {
+  if (count <= 0) return "rgba(21,23,28,.07)";
+  if (count === 1) return "#bce8c9";
+  if (count <= 3) return "#62c87d";
+  return "#16a34a";
 }

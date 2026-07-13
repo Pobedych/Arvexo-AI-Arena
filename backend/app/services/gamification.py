@@ -36,20 +36,44 @@ def record_activity(db: Session, user: ArenaUser) -> None:
     user.longest_streak = max(user.longest_streak, user.current_streak)
 
 
-def weekly_activity(db: Session, user: ArenaUser) -> list[dict]:
-    """Return the last 7 days (oldest first) with an activity count for each day."""
+def activity_history(db: Session, user: ArenaUser, days: int) -> list[dict]:
+    """Return a daily activity series for the requested trailing range."""
+    days = max(1, days)
     today = now_utc().date()
-    start = today - timedelta(days=6)
+    start = today - timedelta(days=days - 1)
     rows = (
         db.query(ActivityLog.activity_date, ActivityLog.action_count)
         .filter(ActivityLog.user_id == user.id, ActivityLog.activity_date >= start, ActivityLog.activity_date <= today)
         .all()
     )
+    progress_rows = (
+        db.query(LessonProgress.completed_at, LessonProgress.best_score)
+        .filter(
+            LessonProgress.user_id == user.id,
+            LessonProgress.status == LessonStatus.completed,
+            LessonProgress.completed_at.isnot(None),
+        )
+        .all()
+    )
     counts = {row.activity_date: row.action_count for row in rows}
+    xp_counts: dict = {}
+    for row in progress_rows:
+        completed_date = row.completed_at.date()
+        if start <= completed_date <= today:
+            xp_counts[completed_date] = xp_counts.get(completed_date, 0) + row.best_score
     return [
-        {"date": (start + timedelta(days=offset)).isoformat(), "count": counts.get(start + timedelta(days=offset), 0)}
-        for offset in range(7)
+        {
+            "date": (start + timedelta(days=offset)).isoformat(),
+            "count": counts.get(start + timedelta(days=offset), 0),
+            "xp": xp_counts.get(start + timedelta(days=offset), 0),
+        }
+        for offset in range(days)
     ]
+
+
+def weekly_activity(db: Session, user: ArenaUser) -> list[dict]:
+    """Return the last 7 days (oldest first) with an activity count for each day."""
+    return activity_history(db, user, 7)
 
 
 def sync_xp(db: Session, user: ArenaUser) -> None:

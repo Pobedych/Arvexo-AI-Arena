@@ -8,7 +8,7 @@ from app.api.deps import get_current_user
 from app.db.session import get_db
 from app.models.entities import ArenaUser, ContentStatus, Lesson, LessonProgress, LessonStatus, Question, Section, Track, now_utc
 from app.schemas.api import AnswerIn, LessonOut, LessonSubmitIn, QuestionOut, TrackOut
-from app.services.gamification import record_activity, sync_xp, weekly_activity
+from app.services.gamification import activity_history, record_activity, sync_xp, weekly_activity
 from app.services.grading import grade_question
 
 router = APIRouter(tags=["learning"])
@@ -170,6 +170,11 @@ def submit_lesson(lesson_id: UUID, payload: LessonSubmitIn, db: Session = Depend
 @router.get("/activity/week")
 def get_weekly_activity(db: Session = Depends(get_db), current_user: ArenaUser = Depends(get_current_user)):
     return weekly_activity(db, current_user)
+
+
+@router.get("/activity/year")
+def get_yearly_activity(db: Session = Depends(get_db), current_user: ArenaUser = Depends(get_current_user)):
+    return activity_history(db, current_user, 365)
 
 
 @router.get("/practice/questions", response_model=list[QuestionOut])

@@ -46,6 +46,7 @@ export type Track = {
 export type ActivityDay = {
   date: string;
   count: number;
+  xp: number;
 };
 
 export type Question = {

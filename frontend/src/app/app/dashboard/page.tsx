@@ -29,14 +29,13 @@ export default function Dashboard() {
 
   const lesson = track ? currentLesson(track) : null;
   const todayIso = new Date().toISOString().slice(0, 10);
-  const maxCount = Math.max(1, ...activity.map((day) => day.count));
-  const activityBars = activity.map((day) => ({
+  const activityDays = activity.map((day) => ({
     label: dayLabels[new Date(`${day.date}T00:00:00`).getDay()],
-    height: day.count === 0 ? 4 : Math.round((day.count / maxCount) * 66) + 10,
-    active: day.count > 0,
+    xp: day.xp,
     today: day.date === todayIso,
   }));
-  const hasActivity = activity.some((day) => day.count > 0);
+  const maxXp = Math.max(1, ...activityDays.map((day) => day.xp));
+  const weekXp = activityDays.reduce((sum, day) => sum + day.xp, 0);
   const nextTournament = useMemo(
     () =>
       tournaments.find((item) => ["active", "published"].includes(item.status)) ??
@@ -129,21 +128,25 @@ export default function Dashboard() {
         <Card>
           <div className="flex justify-between items-baseline mb-4">
             <p className="text-[#6b6f76] text-[11px] font-bold tracking-[.12em] uppercase">Активность за неделю</p>
-            <strong className="text-xs text-[#16a34a]">{hasActivity ? "есть прогресс" : "старт впереди"}</strong>
+            <strong className="text-xs text-[#16a34a]">+{weekXp} XP</strong>
           </div>
-          <div className="flex items-end gap-2.5 h-[76px] mb-2.5">
-            {activityBars.map((day, index) => (
-              <div key={index} className="flex-1 flex flex-col items-center gap-1.5">
-                <div
-                  className="w-full rounded-[7px]"
-                  style={{ height: `${day.height}px`, background: day.today ? "#15171c" : day.active ? "#16a34a" : "rgba(21,23,28,.08)" }}
-                />
+          <div className="grid grid-cols-7 gap-2 mb-3">
+            {activityDays.map((day, index) => (
+              <div key={index} className="flex flex-col items-center gap-1.5">
+                <span className={`text-[9px] font-bold ${day.xp > 0 ? "text-[#16a34a]" : "text-[#aaa79f]"}`}>{day.xp > 0 ? `+${day.xp}` : "0"} XP</span>
+                <div className="flex h-[58px] items-end">
+                  <div
+                    title={`${day.label}: ${day.xp} XP`}
+                    className="w-2.5 rounded-full transition-[height]"
+                    style={{ height: `${day.xp === 0 ? 4 : Math.round((day.xp / maxXp) * 42) + 12}px`, background: day.today ? "#15171c" : day.xp > 0 ? "#16a34a" : "rgba(21,23,28,.1)" }}
+                  />
+                </div>
                 <span className="text-[10px] text-[#a8a49b]">{day.label}</span>
               </div>
             ))}
           </div>
           <p className="text-[11.5px] text-[#6b6f76]">
-            {hasActivity ? "Столбики показывают дни, когда ты проходил уроки, практику или турниры." : "Пройди урок или практику, чтобы здесь появилась активность."}
+            {weekXp > 0 ? `За последние семь дней ты получил ${weekXp} XP.` : "Заверши урок, чтобы получить первый XP на этой неделе."}
           </p>
         </Card>
 
