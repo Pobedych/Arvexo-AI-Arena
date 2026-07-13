@@ -45,6 +45,7 @@ type Question = {
   options: string[] | null;
   configuration: Record<string, unknown> | null;
   correct_answer: Record<string, unknown>;
+  tolerance: number | null;
   points: number;
   explanation: string;
   difficulty: string;
@@ -219,6 +220,7 @@ export default function AdminClient() {
   const [theoryPreview, setTheoryPreview] = useState(false);
   const [questionSearch, setQuestionSearch] = useState("");
   const [questionStatus, setQuestionStatus] = useState("all");
+  const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
   const [questionType, setQuestionType] = useState("single_choice");
   const [optionValues, setOptionValues] = useState(["", "", "", ""]);
   const [correctOptions, setCorrectOptions] = useState<number[]>([0]);
@@ -367,10 +369,54 @@ export default function AdminClient() {
     try {
       await api(`/admin/questions/${question.id}`, { method: "DELETE" });
       setNotice("Задание удалено");
+      if (editingQuestion?.id === question.id) cancelEditQuestion();
       await loadAll();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось удалить задание");
     }
+  }
+
+  function startEditQuestion(question: Question) {
+    setEditingQuestion(question);
+    setQuestionType(question.type);
+    const options = question.options ?? [];
+    setOptionValues(options.length ? [...options] : ["", "", "", ""]);
+    if (question.type === "single_choice") {
+      setCorrectOptions([Number((question.correct_answer as { option?: number }).option ?? 0)]);
+    } else if (question.type === "multiple_choice") {
+      setCorrectOptions(((question.correct_answer as { options?: number[] }).options ?? []).map(Number));
+    } else {
+      setCorrectOptions([0]);
+    }
+    if (question.type === "matching") {
+      const right = (question.configuration as { right?: string[] } | null)?.right ?? [];
+      setMatchingRightValues(right.length ? [...right] : ["", "", "", ""]);
+    } else {
+      setMatchingRightValues(["", "", "", ""]);
+    }
+    if (question.type === "short_text") {
+      setCorrectText(String((question.correct_answer as { text?: string }).text ?? ""));
+    } else if (question.type === "code_text") {
+      setCorrectText(String((question.correct_answer as { code?: string }).code ?? ""));
+    } else if (question.type === "number") {
+      setCorrectText(String((question.correct_answer as { number?: number }).number ?? ""));
+      setNumberTolerance(String(question.tolerance ?? 0));
+    } else {
+      setCorrectText("");
+    }
+    setNotice("");
+    setError("");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function cancelEditQuestion() {
+    setEditingQuestion(null);
+    setQuestionType("single_choice");
+    setOptionValues(["", "", "", ""]);
+    setCorrectOptions([0]);
+    setCorrectText("");
+    setMatchingRightValues(["", "", "", ""]);
+    setNumberTolerance("0");
   }
 
   function startEditLesson(lesson: Lesson) {
@@ -475,35 +521,39 @@ export default function AdminClient() {
     setBusy(true);
     setError("");
     try {
-      await api("/admin/questions", {
-        method: "POST",
-        body: JSON.stringify({
-          lesson_id: form.get("lesson_id") || null,
-          title: form.get("title"),
-          prompt: form.get("prompt"),
-          type: questionType,
-          options: options.length ? options : null,
-          configuration: questionType === "matching" ? { right: matchingRightValues.slice(0, options.length).map((item) => item.trim()) } : null,
-          correct_answer: correctAnswer,
-          tolerance: questionType === "number" ? Number(numberTolerance || 0) : null,
-          points: Number(form.get("points") || 1),
-          explanation: form.get("explanation"),
-          difficulty: form.get("difficulty"),
-          order: Number(form.get("order") || 1),
-          status: form.get("status"),
-        }),
-      });
-      formEl.reset();
-      setQuestionType("single_choice");
-      setOptionValues(["", "", "", ""]);
-      setCorrectOptions([0]);
-      setCorrectText("");
-      setMatchingRightValues(["", "", "", ""]);
-      setNumberTolerance("0");
-      setNotice("Задание создано");
+      const payload = {
+        lesson_id: form.get("lesson_id") || null,
+        title: form.get("title"),
+        prompt: form.get("prompt"),
+        type: questionType,
+        options: options.length ? options : null,
+        configuration: questionType === "matching" ? { right: matchingRightValues.slice(0, options.length).map((item) => item.trim()) } : null,
+        correct_answer: correctAnswer,
+        tolerance: questionType === "number" ? Number(numberTolerance || 0) : null,
+        points: Number(form.get("points") || 1),
+        explanation: form.get("explanation"),
+        difficulty: form.get("difficulty"),
+        order: Number(form.get("order") || 1),
+        status: form.get("status"),
+      };
+      if (editingQuestion) {
+        await api(`/admin/questions/${editingQuestion.id}`, { method: "PATCH", body: JSON.stringify(payload) });
+        setNotice("Задание обновлено");
+        cancelEditQuestion();
+      } else {
+        await api("/admin/questions", { method: "POST", body: JSON.stringify(payload) });
+        formEl.reset();
+        setQuestionType("single_choice");
+        setOptionValues(["", "", "", ""]);
+        setCorrectOptions([0]);
+        setCorrectText("");
+        setMatchingRightValues(["", "", "", ""]);
+        setNumberTolerance("0");
+        setNotice("Задание создано");
+      }
       await loadAll();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось создать задание");
+      setError(err instanceof Error ? err.message : "Не удалось сохранить задание");
     } finally {
       setBusy(false);
     }
@@ -828,26 +878,30 @@ export default function AdminClient() {
 
         {active === "questions" && (
           <section className="grid items-start gap-4 lg:grid-cols-[500px_1fr]">
-            <form onSubmit={submitQuestion} className="rounded-[8px] border border-[rgba(21,23,28,.1)] bg-white p-5 lg:sticky lg:top-5">
+            <form key={editingQuestion?.id ?? "new-question"} onSubmit={submitQuestion} className="rounded-[8px] border border-[rgba(21,23,28,.1)] bg-white p-5 lg:sticky lg:top-5">
               <div className="mb-5 flex items-end justify-between gap-3">
                 <div>
-                  <h2 className="text-[18px] font-extrabold">Новое задание</h2>
+                  <h2 className="text-[18px] font-extrabold">{editingQuestion ? `Редактировать: ${editingQuestion.title}` : "Новое задание"}</h2>
                   <p className="mt-1 text-[12px] text-[#6b6f76]">Правильный ответ задаётся без JSON</p>
                 </div>
-                <span className="text-[12px] font-bold text-[#6b6f76]">{questions.length} в банке</span>
+                {editingQuestion ? (
+                  <button type="button" onClick={cancelEditQuestion} className="text-[12px] font-bold text-[#6b6f76]">Отменить</button>
+                ) : (
+                  <span className="text-[12px] font-bold text-[#6b6f76]">{questions.length} в банке</span>
+                )}
               </div>
               <div className="grid gap-4">
                 <Field label="Урок">
-                  <select name="lesson_id" className={inputClass()}>
+                  <select name="lesson_id" defaultValue={editingQuestion?.lesson_id ?? ""} className={inputClass()}>
                     <option value="">Без привязки к уроку</option>
                     {lessons.map((lesson) => <option key={lesson.id} value={lesson.id}>{lesson.title}</option>)}
                   </select>
                 </Field>
                 <Field label="Служебное название" hint="видно только администратору">
-                  <input name="title" required placeholder="Например: Основы промптинга, вопрос 1" className={inputClass()} />
+                  <input name="title" required placeholder="Например: Основы промптинга, вопрос 1" defaultValue={editingQuestion?.title ?? ""} className={inputClass()} />
                 </Field>
                 <Field label="Условие задания">
-                  <textarea name="prompt" required placeholder="Введите вопрос или условие" rows={4} className={inputClass("resize-y")} />
+                  <textarea name="prompt" required placeholder="Введите вопрос или условие" rows={4} defaultValue={editingQuestion?.prompt ?? ""} className={inputClass("resize-y")} />
                 </Field>
                 <Field label="Тип ответа">
                   <select
@@ -984,23 +1038,25 @@ export default function AdminClient() {
                 )}
 
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  <Field label="Баллы"><input name="points" min="1" type="number" defaultValue={5} className={inputClass()} /></Field>
-                  <Field label="Порядок"><input name="order" min="1" type="number" defaultValue={1} className={inputClass()} /></Field>
+                  <Field label="Баллы"><input name="points" min="1" type="number" defaultValue={editingQuestion?.points ?? 5} className={inputClass()} /></Field>
+                  <Field label="Порядок"><input name="order" min="1" type="number" defaultValue={editingQuestion?.order ?? 1} className={inputClass()} /></Field>
                   <Field label="Сложность">
-                    <select name="difficulty" defaultValue="easy" className={inputClass()}>
+                    <select name="difficulty" defaultValue={editingQuestion?.difficulty ?? "easy"} className={inputClass()}>
                       <option value="easy">Легко</option><option value="medium">Средне</option><option value="hard">Сложно</option>
                     </select>
                   </Field>
                   <Field label="Статус">
-                    <select name="status" defaultValue="draft" className={inputClass()}>
+                    <select name="status" defaultValue={editingQuestion?.status ?? "draft"} className={inputClass()}>
                       <option value="draft">Черновик</option><option value="published">Опубликовано</option>
                     </select>
                   </Field>
                 </div>
                 <Field label="Объяснение ответа">
-                  <textarea name="explanation" required placeholder="Что показать пользователю после проверки" rows={3} className={inputClass("resize-y")} />
+                  <textarea name="explanation" required placeholder="Что показать пользователю после проверки" rows={3} defaultValue={editingQuestion?.explanation ?? ""} className={inputClass("resize-y")} />
                 </Field>
-                <button disabled={busy} className="h-11 rounded-[8px] bg-[#15171c] text-[13px] font-bold text-white disabled:opacity-50">{busy ? "Сохраняем..." : "Создать задание"}</button>
+                <button disabled={busy} className="h-11 rounded-[8px] bg-[#15171c] text-[13px] font-bold text-white disabled:opacity-50">
+                  {busy ? "Сохраняем..." : editingQuestion ? "Обновить задание" : "Создать задание"}
+                </button>
               </div>
             </form>
 
@@ -1021,6 +1077,7 @@ export default function AdminClient() {
                   <p className="mb-3 line-clamp-2 text-[12.5px] leading-relaxed text-[#6b6f76]">{question.prompt}</p>
                   <div className="flex items-center gap-2">
                     <span className={`mr-auto text-[11px] font-bold ${question.status === "published" ? "text-[#15803d]" : "text-[#858990]"}`}>{statusLabels[question.status] || question.status}</span>
+                    <button onClick={() => startEditQuestion(question)} className="rounded-[6px] border border-[rgba(21,23,28,.14)] px-3 py-1.5 text-[11.5px] font-bold">Редактировать</button>
                     {question.status !== "published" && <button onClick={() => patchQuestion(question.id, "published")} className="rounded-[6px] bg-[#16a34a] px-3 py-1.5 text-[11.5px] font-bold text-white">Опубликовать</button>}
                     {question.status !== "archived" && <button onClick={() => patchQuestion(question.id, "archived")} className="rounded-[6px] border border-[rgba(21,23,28,.14)] px-3 py-1.5 text-[11.5px] font-bold">В архив</button>}
                     <button onClick={() => deleteQuestion(question)} className="rounded-[6px] border border-[rgba(255,77,61,.3)] px-3 py-1.5 text-[11.5px] font-bold text-[#b42318]">Удалить</button>

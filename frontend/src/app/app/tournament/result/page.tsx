@@ -58,6 +58,29 @@ function TournamentResultView() {
   const totalCount = result.review?.length ?? tournament.question_count;
 
   return (
+    <TournamentResultBody
+      tournament={tournament}
+      result={result}
+      correctCount={correctCount}
+      totalCount={totalCount}
+    />
+  );
+}
+
+function TournamentResultBody({
+  tournament,
+  result,
+  correctCount,
+  totalCount,
+}: {
+  tournament: Tournament;
+  result: TournamentResult;
+  correctCount: number;
+  totalCount: number;
+}) {
+  const timeLeft = useCountdown(tournament.ends_at);
+
+  return (
     <div>
       <p className="text-[#16a34a] text-[11px] font-bold tracking-[.12em] uppercase mb-2">Попытка завершена</p>
       <h1 className="font-[family-name:var(--font-display)] text-[clamp(28px,3.8vw,44px)] font-semibold mb-5.5">
@@ -71,7 +94,15 @@ function TournamentResultView() {
           value={result.place ? `${result.place}` : "—"}
           suffix={result.participants ? ` / ${result.participants}` : ""}
         />
-        <Metric label="Верно" value={`${correctCount}`} suffix={` / ${totalCount}`} />
+        {result.review_available ? (
+          <Metric label="Верно" value={`${correctCount}`} suffix={` / ${totalCount}`} />
+        ) : (
+          <Metric
+            label="Результат"
+            value={timeLeft.done ? "Скоро" : timeLeft.text}
+            suffix={timeLeft.done ? "" : " до разбора"}
+          />
+        )}
       </div>
 
       <div className="flex flex-wrap gap-2 mb-5.5 text-[12.5px] text-[#6b6f76]">
@@ -132,6 +163,29 @@ function TournamentResultView() {
       </div>
     </div>
   );
+}
+
+function useCountdown(targetIso: string) {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const target = new Date(targetIso).getTime();
+  const remainingMs = target - now;
+  if (remainingMs <= 0) {
+    return { done: true, text: "00:00:00" };
+  }
+
+  const totalSeconds = Math.floor(remainingMs / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const pad = (value: number) => `${value}`.padStart(2, "0");
+
+  return { done: false, text: `${pad(hours)}:${pad(minutes)}:${pad(seconds)}` };
 }
 
 function Metric({ label, value, suffix = "", dark = false }: { label: string; value: string; suffix?: string; dark?: boolean }) {
