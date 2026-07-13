@@ -33,6 +33,8 @@ function TournamentLive() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [confirmSubmitOpen, setConfirmSubmitOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -74,6 +76,15 @@ function TournamentLive() {
     return () => clearInterval(interval);
   }, [attempt?.due_at]);
 
+  useEffect(() => {
+    if (!confirmSubmitOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !submitting) setConfirmSubmitOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [confirmSubmitOpen, submitting]);
+
   const question = attempt?.questions[current] ?? null;
   const progress = useMemo(() => attempt ? Math.round(((current + 1) / attempt.questions.length) * 100) : 0, [attempt, current]);
 
@@ -102,12 +113,16 @@ function TournamentLive() {
 
   async function submit() {
     if (!tournament) return;
+    setSubmitting(true);
     if (question) await saveCurrent();
     try {
       await api<{ status: string; score: number; max_score: number }>(`/tournaments/${tournament.id}/submit`, { method: "POST" });
       router.push(`/app/tournament/result?id=${tournament.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось завершить попытку");
+      setConfirmSubmitOpen(false);
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -153,11 +168,52 @@ function TournamentLive() {
           <button onClick={next} disabled={saving} className="inline-flex items-center h-[42px] px-5 rounded-full bg-[#16a34a] text-white font-bold text-[13px] hover:opacity-86 transition-opacity disabled:opacity-45">
             {current === attempt.questions.length - 1 ? "Сохранить" : "Следующий"}
           </button>
-          <button onClick={submit} className="inline-flex items-center h-[42px] px-5 rounded-full bg-[#15171c] text-white font-bold text-[13px] ml-auto hover:opacity-85 transition-opacity">
+          <button onClick={() => setConfirmSubmitOpen(true)} disabled={saving || submitting} className="inline-flex items-center h-[42px] px-5 rounded-full bg-[#15171c] text-white font-bold text-[13px] ml-auto hover:opacity-85 transition-opacity disabled:opacity-45">
             Завершить попытку
           </button>
         </div>
       </div>
+
+      {confirmSubmitOpen && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-[#15171c]/55 p-4 backdrop-blur-[2px]"
+          onClick={() => !submitting && setConfirmSubmitOpen(false)}
+        >
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="finish-tournament-title"
+            aria-describedby="finish-tournament-description"
+            onClick={(event) => event.stopPropagation()}
+            className="w-full max-w-[430px] rounded-[24px] border border-white/15 bg-white p-6 shadow-[0_24px_80px_-24px_rgba(21,23,28,.55)]"
+          >
+            <div className="mb-5 grid h-11 w-11 place-items-center rounded-full bg-[#fff3d6] text-xl" aria-hidden="true">!</div>
+            <h2 id="finish-tournament-title" className="text-[20px] font-extrabold tracking-tight">Завершить турнир?</h2>
+            <p id="finish-tournament-description" className="mt-2 text-[13.5px] leading-relaxed text-[#6b6f76]">
+              После отправки изменить ответы будет нельзя. Убедитесь, что вы ответили на все вопросы.
+            </p>
+            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                autoFocus
+                disabled={submitting}
+                onClick={() => setConfirmSubmitOpen(false)}
+                className="h-11 rounded-full border border-[rgba(21,23,28,.14)] px-5 text-[13px] font-bold hover:bg-[#f6f4ee] disabled:opacity-45"
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={submit}
+                className="h-11 rounded-full bg-[#15171c] px-5 text-[13px] font-bold text-white hover:opacity-85 disabled:opacity-45"
+              >
+                {submitting ? "Завершаем..." : "Завершить турнир"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
