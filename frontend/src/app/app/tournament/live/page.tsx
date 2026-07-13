@@ -198,15 +198,15 @@ function TournamentLive() {
                 autoFocus
                 disabled={submitting}
                 onClick={() => setConfirmSubmitOpen(false)}
-                className="h-11 rounded-full border border-[rgba(21,23,28,.14)] px-5 text-[13px] font-bold hover:bg-[#f6f4ee] disabled:opacity-45"
+                className="h-11 rounded-full bg-[#16a34a] px-5 text-[13px] font-bold text-white hover:bg-[#15803d] disabled:opacity-45"
               >
-                Отмена
+                Продолжить турнир
               </button>
               <button
                 type="button"
                 disabled={submitting}
                 onClick={submit}
-                className="h-11 rounded-full bg-[#15171c] px-5 text-[13px] font-bold text-white hover:opacity-85 disabled:opacity-45"
+                className="h-11 rounded-full bg-[#ef2b2d] px-5 text-[13px] font-bold text-white shadow-[0_8px_20px_-10px_rgba(239,43,45,.85)] hover:bg-[#d91f22] disabled:opacity-45"
               >
                 {submitting ? "Завершаем..." : "Завершить турнир"}
               </button>
