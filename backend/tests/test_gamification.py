@@ -3,7 +3,7 @@ from datetime import date, datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from app.services.gamification import activity_history, weekly_activity
+from app.services.gamification import activity_history, current_streak_state, weekly_activity
 
 
 class FakeQuery:
@@ -52,6 +52,42 @@ class ActivityHistoryTests(unittest.TestCase):
         self.assertEqual(len(result), 7)
         self.assertEqual(result[0]["date"], "2026-07-07")
         self.assertEqual(result[-1]["date"], "2026-07-13")
+
+
+class CurrentStreakStateTests(unittest.TestCase):
+    def test_streak_is_colored_after_activity_today(self):
+        db = FakeDb(
+            [SimpleNamespace(activity_date=date(2026, 7, day)) for day in (10, 11, 12, 13)]
+        )
+
+        self.assertEqual(current_streak_state(db, SimpleNamespace(id="user-1"), date(2026, 7, 13)), (4, True))
+
+    def test_streak_is_available_but_gray_before_activity_today(self):
+        db = FakeDb(
+            [SimpleNamespace(activity_date=date(2026, 7, day)) for day in (9, 10, 11, 12)]
+        )
+
+        self.assertEqual(current_streak_state(db, SimpleNamespace(id="user-1"), date(2026, 7, 13)), (4, False))
+
+    def test_streak_expires_after_a_missed_day(self):
+        db = FakeDb(
+            [SimpleNamespace(activity_date=date(2026, 7, day)) for day in (8, 9, 10, 11)]
+        )
+
+        self.assertEqual(current_streak_state(db, SimpleNamespace(id="user-1"), date(2026, 7, 13)), (0, False))
+
+    def test_new_user_has_gray_zero_streak(self):
+        db = FakeDb([])
+
+        self.assertEqual(current_streak_state(db, SimpleNamespace(id="user-1"), date(2026, 7, 13)), (0, False))
+
+    def test_streak_ignores_stale_saved_value(self):
+        db = FakeDb(
+            [SimpleNamespace(activity_date=date(2026, 7, day)) for day in (11, 12, 13)]
+        )
+        user = SimpleNamespace(id="user-1", current_streak=4)
+
+        self.assertEqual(current_streak_state(db, user, date(2026, 7, 13)), (3, True))
 
 
 if __name__ == "__main__":

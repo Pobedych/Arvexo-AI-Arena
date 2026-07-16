@@ -10,6 +10,7 @@ export type ApiUser = {
   level: number;
   current_streak: number;
   longest_streak: number;
+  streak_extended_today: boolean;
   arena_score: number | null;
 };
 
@@ -155,6 +156,17 @@ export class ApiError extends Error {
   }
 }
 
+export const STREAK_UPDATED_EVENT = "arena:streak-updated";
+
+function recordsActivity(path: string, method: string | undefined) {
+  if (method?.toUpperCase() !== "POST") return false;
+  return (
+    path === "/practice/check" ||
+    /^\/lessons\/[^/]+\/submit$/.test(path) ||
+    /^\/tournaments\/[^/]+\/start$/.test(path)
+  );
+}
+
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(`/api${path}`, {
     ...init,
@@ -181,7 +193,11 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     throw new ApiError(response.status, message);
   }
 
-  return response.json() as Promise<T>;
+  const body = (await response.json()) as T;
+  if (typeof window !== "undefined" && recordsActivity(path, init.method)) {
+    window.dispatchEvent(new Event(STREAK_UPDATED_EVENT));
+  }
+  return body;
 }
 
 export function flattenLessons(track: Track): TrackLesson[] {

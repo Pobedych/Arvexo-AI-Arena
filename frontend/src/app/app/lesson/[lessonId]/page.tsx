@@ -35,11 +35,76 @@ type Block =
   | { kind: "question"; key: string; order: number; question: Question; index: number };
 
 function buildBlocks(lesson: Lesson): Block[] {
+  if (!lesson.steps.length) return buildLegacyBlocks(lesson);
   const blocks: Block[] = [
     ...lesson.steps.map((step) => ({ kind: "step" as const, key: `step-${step.id}`, order: step.order, step })),
     ...lesson.questions.map((question, index) => ({ kind: "question" as const, key: `question-${question.id}`, order: question.order, question, index })),
   ];
   return blocks.sort((a, b) => a.order - b.order || (a.kind === "step" ? -1 : b.kind === "step" ? 1 : 0));
+}
+
+function buildLegacyBlocks(lesson: Lesson): Block[] {
+  const steps = splitTheory(lesson.theory, lesson.id);
+  if (!steps.length) {
+    return lesson.questions.map((question, index) => ({ kind: "question", key: `question-${question.id}`, order: index + 1, question, index }));
+  }
+  const questionsByStep = new Map<number, Array<{ question: Question; index: number }>>();
+  lesson.questions.forEach((question, index) => {
+    const stepIndex = Math.min(steps.length - 1, Math.floor(((index + 1) * steps.length) / (lesson.questions.length + 1)));
+    questionsByStep.set(stepIndex, [...(questionsByStep.get(stepIndex) ?? []), { question, index }]);
+  });
+  return steps.flatMap((step, stepIndex) => [
+    { kind: "step" as const, key: `step-${step.id}`, order: stepIndex * 10 + 1, step },
+    ...(questionsByStep.get(stepIndex) ?? []).map(({ question, index }, questionIndex) => ({
+      kind: "question" as const,
+      key: `question-${question.id}`,
+      order: stepIndex * 10 + questionIndex + 2,
+      question,
+      index,
+    })),
+  ]);
+}
+
+function splitTheory(theory: string, lessonId: string): LessonStep[] {
+  const headingSections = theory
+    .split(/(?=^#{2,3}\s+)/m)
+    .map((section) => section.trim())
+    .filter(Boolean);
+  const sections = headingSections.length > 1 ? headingSections : chunkParagraphs(theory);
+  return sections.map((section, index) => {
+    const heading = section.match(/^#{1,3}\s+(.+)$/m);
+    const body = heading ? section.replace(heading[0], "").trim() : section;
+    return {
+      id: `${lessonId}-auto-${index}`,
+      title: heading?.[1]?.trim() || (index === 0 ? "Разберём основную идею" : `Шаг ${index + 1}`),
+      body,
+      order: index + 1,
+    };
+  }).filter((step) => step.body);
+}
+
+function chunkParagraphs(theory: string) {
+  const paragraphs = theory.split(/\n\s*\n/).map((paragraph) => paragraph.trim()).filter(Boolean);
+  const chunks: string[] = [];
+  let current = "";
+  for (const paragraph of paragraphs) {
+    if (current && current.length + paragraph.length > 900) {
+      chunks.push(current);
+      current = paragraph;
+    } else {
+      current = current ? `${current}\n\n${paragraph}` : paragraph;
+    }
+  }
+  if (current) chunks.push(current);
+  return chunks;
+}
+
+function estimateMinutes(blocks: Block[], fromIndex = 0) {
+  return blocks.slice(fromIndex).reduce((total, block) => {
+    if (block.kind === "question") return total + 2;
+    const words = block.step.body.trim().split(/\s+/).filter(Boolean).length;
+    return total + Math.max(1, Math.ceil(words / 180));
+  }, 0);
 }
 
 export default function LessonPage() {
@@ -49,12 +114,16 @@ export default function LessonPage() {
   const [result, setResult] = useState<SubmitResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [revealCount, setRevealCount] = useState(1);
+  const [currentBlock, setCurrentBlock] = useState(0);
+  const [furthestBlock, setFurthestBlock] = useState(0);
 
   useEffect(() => {
     api<Lesson>(`/lessons/${params.lessonId}`)
       .then((lessonData) => {
         setLesson(lessonData);
+        setCurrentBlock(0);
+        setFurthestBlock(0);
+        setResult(null);
         setAnswers(Object.fromEntries(
           lessonData.questions
             .filter((question) => question.type === "sequence" || question.type === "matching" || question.type === "group_sort" || isAdvancedQuestion(question.type))
@@ -76,8 +145,14 @@ export default function LessonPage() {
   }, [params.lessonId]);
 
   const blocks = useMemo(() => (lesson ? buildBlocks(lesson) : []), [lesson]);
-  const useSteps = (lesson?.steps.length ?? 0) > 0;
   const canSubmit = useMemo(() => lesson?.questions.every((question) => hasAnswer(question, answers[question.id])) ?? false, [lesson, answers]);
+
+  function goToBlock(index: number) {
+    const next = Math.max(0, Math.min(index, blocks.length));
+    setCurrentBlock(next);
+    setFurthestBlock((furthest) => Math.max(furthest, next));
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
   async function submit() {
     if (!lesson) return;
@@ -128,161 +203,120 @@ export default function LessonPage() {
     </>
   );
 
-  if (!useSteps) {
-    return (
-      <div>
-        {header}
-
-        <nav aria-label="Навигация по уроку" className="flex gap-2 mb-3.5 flex-wrap">
-          <a href="#lesson-theory" className="inline-flex items-center h-9 px-4 rounded-full bg-[#15171c] text-white text-xs font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16a34a]">
-            Материал
-          </a>
-          <a href="#lesson-questions" className="inline-flex items-center h-9 px-4 rounded-full bg-white border border-[rgba(21,23,28,.1)] text-xs font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16a34a]">
-            Проверка · заданий: {lesson.questions.length}
-          </a>
-        </nav>
-
-        <div id="lesson-theory" className="scroll-mt-24 rounded-[24px] bg-white border border-[rgba(21,23,28,.07)] py-7.5 px-8 mb-3.5 shadow-[0_10px_30px_-24px_rgba(21,23,28,.3)]">
-          <MarkdownContent content={lesson.theory} />
-        </div>
-
-        <div id="lesson-questions" className="scroll-mt-24 rounded-[24px] bg-white border border-[rgba(22,163,74,.18)] p-6.5 shadow-[0_10px_30px_-24px_rgba(22,163,74,.18)]">
-          <p className="text-[#16a34a] text-[11px] font-bold tracking-[.12em] uppercase mb-3.5">Проверь себя</p>
-          <div className="grid gap-5">
-            {lesson.questions.map((question, index) => (
-              <QuestionBlock
-                key={question.id}
-                question={question}
-                index={index}
-                value={answers[question.id]}
-                disabled={Boolean(result)}
-                onChange={(value) => setAnswers((current) => ({ ...current, [question.id]: value }))}
-                result={result?.results.find((item) => item.question_id === question.id)}
-              />
-            ))}
-          </div>
-
-          {error && <p className="text-[#ff4d3d] text-xs font-semibold mt-4">{error}</p>}
-
-          {result && (
-            <div className={`rounded-[14px] py-3.5 px-4 mt-4 ${result.completed ? "bg-[rgba(22,163,74,.08)] border border-[rgba(22,163,74,.2)]" : "bg-[rgba(255,77,61,.08)] border border-[rgba(255,77,61,.2)]"}`}>
-              <strong className={`text-[12.5px] ${result.completed ? "text-[#16a34a]" : "text-[#ff4d3d]"}`}>
-                {result.completed ? "Урок завершён." : "Нужно повторить."}
-              </strong>{" "}
-              <span className="text-[12.5px]">
-                {result.score}/{result.max_score} баллов · {result.percent}%
-              </span>
-            </div>
-          )}
-
-          <div className="flex gap-2.5 mt-4.5 flex-wrap">
-            {!result && (
-              <button
-                onClick={submit}
-                disabled={!canSubmit}
-                className="inline-flex items-center h-[42px] px-5 rounded-full bg-[#16a34a] text-white font-bold text-[13px] hover:opacity-86 transition-opacity disabled:opacity-40"
-              >
-                Отправить ответы
-              </button>
-            )}
-            {result && (
-              <Link href="/app/track" className="inline-flex items-center h-[42px] px-5 rounded-full bg-[#15171c] text-white font-bold text-[13px] ml-auto hover:opacity-85 transition-opacity">
-                Вернуться к треку
-              </Link>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const visibleBlocks = blocks.slice(0, Math.min(revealCount, blocks.length));
-  const wizardDone = revealCount >= blocks.length;
-  const progress = blocks.length ? Math.round((Math.min(revealCount, blocks.length) / blocks.length) * 100) : 0;
+  const wizardDone = currentBlock >= blocks.length;
+  const progress = blocks.length ? Math.round((Math.min(currentBlock, blocks.length) / blocks.length) * 100) : 0;
+  const minutesLeft = estimateMinutes(blocks, currentBlock);
 
   return (
     <div>
       {header}
 
-      <div className="h-[5px] rounded-full bg-[rgba(21,23,28,.1)] mb-5">
-        <span className="block h-full rounded-full bg-[#16a34a] transition-all" style={{ width: `${progress}%` }} />
-      </div>
-
-      <div className="grid gap-3.5">
-        {visibleBlocks.map((block, blockIndex) => {
-          const isActive = blockIndex === revealCount - 1 && !wizardDone;
-          if (block.kind === "step") {
-            return (
-              <StepBlock
-                key={block.key}
-                step={block.step}
-                active={isActive}
-                onContinue={() => setRevealCount((count) => count + 1)}
-              />
-            );
-          }
-          return (
-            <MiniCheckBlock
-              key={block.key}
-              question={block.question}
-              active={isActive}
-              value={answers[block.question.id]}
-              onChange={(value) => setAnswers((current) => ({ ...current, [block.question.id]: value }))}
-              onContinue={() => setRevealCount((count) => count + 1)}
-            />
-          );
-        })}
-      </div>
-
-      {wizardDone && (
-        <div className="rounded-[24px] bg-white border border-[rgba(22,163,74,.18)] p-6.5 shadow-[0_10px_30px_-24px_rgba(22,163,74,.18)] mt-3.5">
-          <p className="text-[#16a34a] text-[11px] font-bold tracking-[.12em] uppercase mb-3.5">Материал пройден</p>
-
-          {error && <p className="text-[#ff4d3d] text-xs font-semibold mb-3">{error}</p>}
-
-          {result && (
-            <div className={`rounded-[14px] py-3.5 px-4 mb-4 ${result.completed ? "bg-[rgba(22,163,74,.08)] border border-[rgba(22,163,74,.2)]" : "bg-[rgba(255,77,61,.08)] border border-[rgba(255,77,61,.2)]"}`}>
-              <strong className={`text-[12.5px] ${result.completed ? "text-[#16a34a]" : "text-[#ff4d3d]"}`}>
-                {result.completed ? "Урок завершён." : "Нужно повторить."}
-              </strong>{" "}
-              <span className="text-[12.5px]">
-                {result.score}/{result.max_score} баллов · {result.percent}%
-              </span>
-            </div>
-          )}
-
-          <div className="flex gap-2.5 flex-wrap">
-            {!result && (
-              <button
-                onClick={submit}
-                disabled={!canSubmit}
-                className="inline-flex items-center h-[42px] px-5 rounded-full bg-[#16a34a] text-white font-bold text-[13px] hover:opacity-86 transition-opacity disabled:opacity-40"
-              >
-                Завершить урок
-              </button>
-            )}
-            {result && (
-              <Link href="/app/track" className="inline-flex items-center h-[42px] px-5 rounded-full bg-[#15171c] text-white font-bold text-[13px] ml-auto hover:opacity-85 transition-opacity">
-                Вернуться к треку
-              </Link>
-            )}
+      <div className="mb-5 rounded-[22px] border border-[rgba(21,23,28,.08)] bg-white p-4 shadow-[0_10px_30px_-26px_rgba(21,23,28,.35)] sm:p-5">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-[10.5px] font-extrabold uppercase tracking-[.12em] text-[#16a34a]">Маршрут урока</p>
+            <p className="mt-1 text-[13px] font-bold">{wizardDone ? "Все смысловые блоки пройдены" : `Шаг ${currentBlock + 1} из ${blocks.length}`}</p>
+          </div>
+          <div className="flex gap-2 text-[11.5px] font-bold text-[#6b6f76]">
+            {!wizardDone && <span className="rounded-full bg-[#f6f4ee] px-3 py-1.5">≈ {minutesLeft} мин осталось</span>}
+            <span className="rounded-full bg-[#eef7ec] px-3 py-1.5 text-[#15803d]">{progress}%</span>
           </div>
         </div>
-      )}
+        <div className="h-[7px] overflow-hidden rounded-full bg-[rgba(21,23,28,.09)]">
+          <span className="block h-full rounded-full bg-[#16a34a] transition-[width] duration-300" style={{ width: `${progress}%` }} />
+        </div>
+      </div>
+
+      <div className="grid items-start gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
+        <aside className="rounded-[20px] border border-[rgba(21,23,28,.08)] bg-white p-3.5 lg:sticky lg:top-24">
+          <p className="mb-3 px-1 text-[10px] font-extrabold uppercase tracking-[.12em] text-[#858990]">Содержание</p>
+          <ol className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-1">
+            {blocks.map((block, index) => {
+              const available = index <= furthestBlock;
+              const active = index === currentBlock;
+              const complete = index < furthestBlock || wizardDone;
+              const label = block.kind === "step" ? block.step.title || `Теория ${index + 1}` : "Мини-проверка";
+              return (
+                <li key={block.key}>
+                  <button
+                    type="button"
+                    disabled={!available}
+                    onClick={() => goToBlock(index)}
+                    className={`flex w-full items-center gap-2.5 rounded-[12px] px-2.5 py-2 text-left text-[11.5px] font-bold transition-colors disabled:opacity-45 ${active ? "bg-[#15171c] text-white" : "hover:bg-[#f6f4ee]"}`}
+                  >
+                    <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-[10px] ${active ? "bg-[#ffb100] text-[#15171c]" : complete ? "bg-[#16a34a] text-white" : "bg-[#f0eee7] text-[#858990]"}`}>
+                      {complete ? "✓" : index + 1}
+                    </span>
+                    <span className="line-clamp-2">{label}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+        </aside>
+
+        <main className="min-w-0">
+          {blocks.map((block, blockIndex) => (
+            <div key={block.key} hidden={blockIndex !== currentBlock}>
+              {block.kind === "step" ? (
+                <StepBlock
+                  step={block.step}
+                  active={blockIndex === currentBlock && !wizardDone}
+                  onBack={currentBlock > 0 ? () => goToBlock(currentBlock - 1) : undefined}
+                  onContinue={() => goToBlock(currentBlock + 1)}
+                />
+              ) : (
+                <MiniCheckBlock
+                  question={block.question}
+                  active={blockIndex === currentBlock && !wizardDone}
+                  value={answers[block.question.id]}
+                  onChange={(value) => setAnswers((current) => ({ ...current, [block.question.id]: value }))}
+                  onBack={currentBlock > 0 ? () => goToBlock(currentBlock - 1) : undefined}
+                  onContinue={() => goToBlock(currentBlock + 1)}
+                />
+              )}
+            </div>
+          ))}
+
+          {wizardDone && (
+            <div className="rounded-[26px] border border-[rgba(22,163,74,.2)] bg-white p-6 shadow-[0_18px_50px_-36px_rgba(22,163,74,.6)] sm:p-8">
+              <div className="mb-5 grid h-14 w-14 place-items-center rounded-[18px] bg-[#eef7ec] text-[26px]" aria-hidden="true">✓</div>
+              <p className="text-[11px] font-bold uppercase tracking-[.12em] text-[#16a34a]">Финиш урока</p>
+              <h2 className="mt-2 text-[clamp(22px,3vw,30px)] font-extrabold tracking-tight">Главное уже разобрано</h2>
+              <p className="mt-2 max-w-[560px] text-[13.5px] leading-relaxed text-[#6b6f76]">Отправьте ответы, чтобы сохранить лучший результат и открыть следующий урок.</p>
+
+              {error && <p className="mt-4 text-xs font-semibold text-[#ff4d3d]">{error}</p>}
+              {result && (
+                <div className={`mt-5 rounded-[16px] px-4 py-3.5 ${result.completed ? "border border-[rgba(22,163,74,.2)] bg-[rgba(22,163,74,.08)]" : "border border-[rgba(255,77,61,.2)] bg-[rgba(255,77,61,.08)]"}`}>
+                  <strong className={`text-[13px] ${result.completed ? "text-[#16a34a]" : "text-[#ff4d3d]"}`}>{result.completed ? "Урок завершён." : "Нужно повторить."}</strong>{" "}
+                  <span className="text-[13px]">{result.score}/{result.max_score} баллов · {result.percent}%</span>
+                </div>
+              )}
+
+              <div className="mt-6 flex flex-wrap gap-2.5">
+                <button type="button" onClick={() => goToBlock(Math.max(0, blocks.length - 1))} className="inline-flex h-[42px] items-center rounded-full border border-[rgba(21,23,28,.14)] px-5 text-[13px] font-bold hover:bg-[#f6f4ee]">← Вернуться к уроку</button>
+                {!result && <button onClick={submit} disabled={!canSubmit} className="inline-flex h-[42px] items-center rounded-full bg-[#16a34a] px-5 text-[13px] font-bold text-white hover:opacity-86 disabled:opacity-40">Завершить урок</button>}
+                {result && <Link href="/app/track" className="inline-flex h-[42px] items-center rounded-full bg-[#15171c] px-5 text-[13px] font-bold text-white">Вернуться к треку</Link>}
+              </div>
+            </div>
+          )}
+        </main>
+      </div>
     </div>
   );
 }
 
-function StepBlock({ step, active, onContinue }: { step: LessonStep; active: boolean; onContinue: () => void }) {
+function StepBlock({ step, active, onBack, onContinue }: { step: LessonStep; active: boolean; onBack?: () => void; onContinue: () => void }) {
   return (
     <div className="rounded-[24px] bg-white border border-[rgba(21,23,28,.07)] py-7.5 px-8 shadow-[0_10px_30px_-24px_rgba(21,23,28,.3)]">
       {step.title && <h2 className="text-lg font-bold mb-3">{step.title}</h2>}
       <MarkdownContent content={step.body} />
       {active && (
-        <div className="flex mt-4.5">
+        <div className="flex flex-wrap gap-2.5 mt-5">
+          {onBack && <button type="button" onClick={onBack} className="inline-flex items-center h-[42px] px-5 rounded-full border border-[rgba(21,23,28,.14)] font-bold text-[13px] hover:bg-[#f6f4ee]">← Назад</button>}
           <button
             onClick={onContinue}
-            className="inline-flex items-center h-[42px] px-5 rounded-full bg-[#15171c] text-white font-bold text-[13px] hover:opacity-85 transition-opacity"
+            className="inline-flex items-center h-[42px] px-5 rounded-full bg-[#15171c] text-white font-bold text-[13px] hover:opacity-85 transition-opacity sm:ml-auto"
           >
             Далее →
           </button>
@@ -297,12 +331,14 @@ function MiniCheckBlock({
   active,
   value,
   onChange,
+  onBack,
   onContinue,
 }: {
   question: Question;
   active: boolean;
   value: AnswerValue | undefined;
   onChange: (value: AnswerValue) => void;
+  onBack?: () => void;
   onContinue: () => void;
 }) {
   const [result, setResult] = useState<PracticeCheckResult | null>(null);
@@ -340,11 +376,16 @@ function MiniCheckBlock({
 
       {active && (
         <div className="flex gap-2.5 mt-4.5 flex-wrap">
+          {onBack && (
+            <button type="button" onClick={onBack} className="inline-flex items-center h-[42px] px-5 rounded-full border border-[rgba(21,23,28,.14)] font-bold text-[13px] hover:bg-[#f6f4ee]">
+              ← Назад
+            </button>
+          )}
           {!result && (
             <button
               onClick={check}
               disabled={checking || !hasAnswer(question, value)}
-              className="inline-flex items-center h-[42px] px-5 rounded-full bg-[#16a34a] text-white font-bold text-[13px] hover:opacity-86 transition-opacity disabled:opacity-40"
+              className="inline-flex items-center h-[42px] px-5 rounded-full bg-[#16a34a] text-white font-bold text-[13px] hover:opacity-86 transition-opacity disabled:opacity-40 sm:ml-auto"
             >
               Проверить ответ
             </button>
@@ -352,7 +393,7 @@ function MiniCheckBlock({
           {result && (
             <button
               onClick={onContinue}
-              className="inline-flex items-center h-[42px] px-5 rounded-full bg-[#15171c] text-white font-bold text-[13px] hover:opacity-85 transition-opacity"
+              className="inline-flex items-center h-[42px] px-5 rounded-full bg-[#15171c] text-white font-bold text-[13px] hover:opacity-85 transition-opacity sm:ml-auto"
             >
               Далее →
             </button>
@@ -445,37 +486,6 @@ function QuestionInputs({
         />
       )}
     </>
-  );
-}
-
-function QuestionBlock({
-  question,
-  index,
-  value,
-  disabled,
-  onChange,
-  result,
-}: {
-  question: Question;
-  index: number;
-  value: AnswerValue | undefined;
-  disabled: boolean;
-  onChange: (value: AnswerValue) => void;
-  result?: { is_correct: boolean; points: number; explanation: string };
-}) {
-  return (
-    <div>
-      <p className="text-[#6b6f76] text-[11px] font-bold tracking-[.12em] uppercase mb-2">
-        Вопрос {index + 1} · {question.points} баллов
-      </p>
-      <h3 className="text-base font-bold leading-snug mb-3">{question.prompt}</h3>
-      <QuestionInputs question={question} value={value} disabled={disabled} onChange={onChange} />
-      {result && (
-        <p className={`text-[12.5px] mt-2 ${result.is_correct ? "text-[#16a34a]" : "text-[#ff4d3d]"}`}>
-          {result.is_correct ? "Верно" : "Не совсем"} · {result.explanation}
-        </p>
-      )}
-    </div>
   );
 }
 

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { api, type ApiUser } from "@/lib/api";
+import { api, STREAK_UPDATED_EVENT, type ApiUser } from "@/lib/api";
 
 function streakLabel(days: number) {
   const mod10 = days % 10;
@@ -26,8 +26,22 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<ApiUser | null>(null);
 
   useEffect(() => {
-    api<ApiUser>("/auth/me").then(setUser).catch(() => undefined);
-  }, []);
+    let cancelled = false;
+    const refreshUser = () => {
+      api<ApiUser>("/auth/me")
+        .then((userData) => {
+          if (!cancelled) setUser(userData);
+        })
+        .catch(() => undefined);
+    };
+
+    refreshUser();
+    window.addEventListener(STREAK_UPDATED_EVENT, refreshUser);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(STREAK_UPDATED_EVENT, refreshUser);
+    };
+  }, [pathname]);
 
   const displayName = user?.display_name ?? "Пользователь";
   const initials = displayName
@@ -51,7 +65,14 @@ export default function AppShell({ children }: { children: ReactNode }) {
         <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
           {user && (
             <div className="hidden md:flex items-center gap-1.5 bg-[#15171c] text-white rounded-full py-1.5 px-3.5 text-xs font-bold whitespace-nowrap">
-              <span className="text-[#ff9d3d]">🔥</span> {user.current_streak} {streakLabel(user.current_streak)}
+              <span
+                aria-label={user.streak_extended_today ? "Серия продлена сегодня" : "Серия ещё не продлена сегодня"}
+                className={user.streak_extended_today ? undefined : "grayscale opacity-45"}
+                role="img"
+              >
+                🔥
+              </span>{" "}
+              {user.current_streak} {streakLabel(user.current_streak)}
             </div>
           )}
           {user && (

@@ -8,7 +8,7 @@ from app.db.session import get_db
 from app.models.entities import ArenaUser
 from app.schemas.api import UserOut
 from app.services.account_sso import build_start_response, exchange_code, upsert_arena_user
-from app.services.gamification import compute_arena_score
+from app.services.gamification import compute_arena_score, current_streak_state
 from app.services.session_service import clear_session_cookie, create_session, revoke_session_token
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -65,6 +65,12 @@ def logout(
 
 
 @router.get("/me", response_model=UserOut)
-def me(current_user: ArenaUser = Depends(get_current_user), db: Session = Depends(get_db)) -> ArenaUser:
+def me(current_user: ArenaUser = Depends(get_current_user), db: Session = Depends(get_db)) -> UserOut:
     current_user.arena_score = compute_arena_score(db, current_user)
-    return current_user
+    current_streak, streak_extended_today = current_streak_state(db, current_user)
+    return UserOut.model_validate(current_user).model_copy(
+        update={
+            "current_streak": current_streak,
+            "streak_extended_today": streak_extended_today,
+        }
+    )

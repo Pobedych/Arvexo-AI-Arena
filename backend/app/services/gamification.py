@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import date, timedelta
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -26,14 +26,28 @@ def record_activity(db: Session, user: ArenaUser) -> None:
         db.add(log)
     log.action_count += 1
 
-    if user.last_active_date == today:
-        return
-    if user.last_active_date == today - timedelta(days=1):
-        user.current_streak += 1
-    else:
-        user.current_streak = 1
+    user.current_streak, _ = current_streak_state(db, user, today)
     user.last_active_date = today
     user.longest_streak = max(user.longest_streak, user.current_streak)
+
+
+def current_streak_state(db: Session, user: ArenaUser, today: date | None = None) -> tuple[int, bool]:
+    """Calculate the streak from activity dates and report whether it was extended today."""
+    today = today or now_utc().date()
+    rows = (
+        db.query(ActivityLog.activity_date)
+        .filter(ActivityLog.user_id == user.id, ActivityLog.activity_date <= today)
+        .all()
+    )
+    activity_dates = {row.activity_date for row in rows}
+    extended_today = today in activity_dates
+    cursor = today if extended_today else today - timedelta(days=1)
+    streak = 0
+
+    while cursor in activity_dates:
+        streak += 1
+        cursor -= timedelta(days=1)
+    return streak, extended_today
 
 
 def activity_history(db: Session, user: ArenaUser, days: int) -> list[dict]:

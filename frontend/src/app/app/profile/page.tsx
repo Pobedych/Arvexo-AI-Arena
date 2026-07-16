@@ -82,7 +82,16 @@ export default function Profile() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
         <Stat value={`Уровень ${user.level}`} label={`${user.xp} XP · за завершённые уроки`} />
         <div className="rounded-2xl bg-[#15171c] text-white p-4">
-          <strong className="font-[family-name:var(--font-display)] text-2xl block text-[#ff9d3d]">🔥 {user.current_streak}</strong>
+          <strong className="font-[family-name:var(--font-display)] text-2xl block text-[#ff9d3d]">
+            <span
+              aria-label={user.streak_extended_today ? "Серия продлена сегодня" : "Серия ещё не продлена сегодня"}
+              className={user.streak_extended_today ? undefined : "grayscale opacity-45"}
+              role="img"
+            >
+              🔥
+            </span>{" "}
+            {user.current_streak}
+          </strong>
           <span className="text-[11.5px] text-white/55">дней подряд · рекорд {user.longest_streak}</span>
         </div>
         <Stat

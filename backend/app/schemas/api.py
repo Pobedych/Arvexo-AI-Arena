@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 AnswerScalar = str | int | float | bool
 AnswerValue = AnswerScalar | list[AnswerScalar] | None
@@ -12,6 +12,8 @@ MAX_ANSWER_FIELDS = 10
 
 
 class UserOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: UUID
     account_user_id: str
     email: str | None
@@ -23,6 +25,7 @@ class UserOut(BaseModel):
     level: int
     current_streak: int
     longest_streak: int
+    streak_extended_today: bool = False
     arena_score: float | None = None
 
 

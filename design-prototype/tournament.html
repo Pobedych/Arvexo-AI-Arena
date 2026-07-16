@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="HTML-прототип турнирной арены Arvexo" />
+    <title>Арена | Arvexo Arena</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">К содержанию</a>
+    <div class="app-shell">
+      <header class="app-header">
+        <div class="container header-inner">
+          <a class="brand" href="index.html" aria-label="Arvexo Arena, главная">
+            <span class="brand-mark" aria-hidden="true">A</span>
+            <span>Arvexo Arena</span>
+          </a>
+          <div class="user-tools">
+            <span class="streak">4 дня подряд</span>
+            <span class="streak">Уровень 1</span>
+            <button class="icon-button theme-toggle" type="button" data-theme-toggle aria-label="Переключить тему">◐</button>
+            <a class="user-chip" href="dashboard.html#profile">
+              <span class="avatar" aria-hidden="true">A</span>
+              <span>Alexey</span>
+            </a>
+          </div>
+        </div>
+      </header>
+
+      <main class="container app-main" id="main">
+        <div class="page-intro" data-reveal>
+          <div>
+            <p class="mono-label">Турнир завершён</p>
+            <h1>AI Basics Tournament</h1>
+            <p>Проверь результат, разбери ошибки и подготовься к следующей попытке.</p>
+          </div>
+        </div>
+
+        <section class="arena-layout" data-reveal>
+          <article class="tournament-main">
+            <p class="mono-label">Твоя попытка</p>
+            <h2>Ответы отправлены</h2>
+            <p>Результат сохранён в профиле. Можно открыть подробный разбор и увидеть темы для повторения.</p>
+
+            <div class="tournament-facts" aria-label="Параметры турнира">
+              <div class="fact"><span>Формат</span><strong>12 задач</strong></div>
+              <div class="fact"><span>Готовность</span><strong>43%</strong></div>
+              <div class="fact"><span>Попытка</span><strong>60 минут</strong></div>
+            </div>
+
+            <a class="button" href="#result">Открыть результат</a>
+          </article>
+
+          <aside class="tournament-side" aria-labelledby="window-title">
+            <div>
+              <p class="mono-label" id="window-title">Окно турнира</p>
+              <div class="window-date">9-16 июля</div>
+              <p class="soft">Турнир закрыт. Результаты доступны участникам.</p>
+            </div>
+            <div class="topics" aria-label="Темы турнира">
+              <span>Данные</span>
+              <span>ML-задачи</span>
+              <span>Метрики</span>
+              <span>Ответственный AI</span>
+            </div>
+          </aside>
+        </section>
+
+        <section class="past-tournaments" id="result" aria-labelledby="past-title" data-reveal>
+          <h2 id="past-title">Другие турниры</h2>
+          <div class="tournament-list">
+            <a class="tournament-row" href="#first-trainer">
+              <strong>First Trainer</strong>
+              <span>Завершён, 11 июля</span>
+            </a>
+            <a class="tournament-row" href="#ai-first">
+              <strong>AI First</strong>
+              <span>Завершён, 13 июля</span>
+            </a>
+            <a class="tournament-row" href="#data-sprint">
+              <strong>Data Sprint</strong>
+              <span>Регистрация открыта</span>
+            </a>
+            <a class="tournament-row" href="#responsible-ai">
+              <strong>Responsible AI</strong>
+              <span>Старт 21 июля</span>
+            </a>
+          </div>
+        </section>
+      </main>
+
+      <nav class="app-dock" aria-label="Разделы приложения">
+        <a href="dashboard.html">Обзор</a>
+        <a href="track.html">AI Track</a>
+        <a href="practice.html">Практика</a>
+        <a href="tournament.html" aria-current="page">Арена</a>
+      </nav>
+    </div>
+  </body>
+</html>
