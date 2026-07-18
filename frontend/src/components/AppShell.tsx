@@ -53,41 +53,41 @@ export default function AppShell({ children }: { children: ReactNode }) {
     .toUpperCase();
 
   return (
-    <div className="min-h-dvh bg-white flex flex-col">
+    <div className="min-h-dvh bg-[#f6f4ee] flex flex-col">
       {/* header */}
       <div className="sticky top-0 z-20 flex items-center justify-between gap-2 px-4 sm:px-7 py-3 sm:py-4.5 border-b border-[rgba(21,23,28,.07)] bg-white">
         <Link href="/" className="flex items-center gap-2 sm:gap-2.5 hover:opacity-80 transition-opacity shrink-0">
-          <span className="w-8 h-8 rounded-[9px] bg-[#15171c] grid place-items-center text-[#ffb100] font-extrabold text-[13px] font-[family-name:var(--font-display)]">
+          <span className="w-8 h-8 rounded-[9px] bg-[#15171c] grid place-items-center text-[#74bd70] font-semibold text-[13px] font-[family-name:var(--font-display)]">
             A
           </span>
-          <strong className="hidden sm:inline text-[14.5px] tracking-tight whitespace-nowrap">Arvexo Arena</strong>
+          <strong className="hidden sm:inline text-[14.5px] font-semibold tracking-tight whitespace-nowrap">Arvexo Arena</strong>
         </Link>
         <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
           {user && (
-            <div className="hidden md:flex items-center gap-1.5 bg-[#15171c] text-white rounded-full py-1.5 px-3.5 text-xs font-bold whitespace-nowrap">
+            <div className="hidden md:flex items-center gap-1.5 bg-[#15171c] text-white rounded-full py-1.5 px-3.5 text-xs font-medium whitespace-nowrap">
               <span
                 aria-label={user.streak_extended_today ? "Серия продлена сегодня" : "Серия ещё не продлена сегодня"}
-                className={user.streak_extended_today ? undefined : "grayscale opacity-45"}
+                className={user.streak_extended_today ? "text-[#74bd70]" : "text-white/35"}
                 role="img"
               >
-                🔥
+                ↗
               </span>{" "}
               {user.current_streak} {streakLabel(user.current_streak)}
             </div>
           )}
           {user && (
-            <div className="hidden md:flex items-center gap-1.5 bg-[#f6f4ee] rounded-full py-1.5 px-3.5 text-xs font-bold whitespace-nowrap">
-              <span className="text-[#ffb100]">★</span> Уровень {user.level}
+            <div className="hidden md:flex items-center gap-1.5 bg-[#eff5ed] rounded-full py-1.5 px-3.5 text-xs font-medium whitespace-nowrap">
+              <span className="text-[#52a24f]">★</span> Уровень {user.level}
             </div>
           )}
           <Link
             href="/app/profile"
             className="flex items-center gap-2 md:border-l border-[rgba(21,23,28,.08)] pl-0 md:pl-3 hover:opacity-80 transition-opacity min-w-0"
           >
-            <span className="w-[30px] h-[30px] rounded-full bg-[#16a34a] text-white grid place-items-center font-bold text-[11.5px] shrink-0">
+            <span className="w-[30px] h-[30px] rounded-full bg-[#52a24f] text-white grid place-items-center font-semibold text-[11.5px] shrink-0">
               {initials || "A"}
             </span>
-            <span className="hidden sm:inline text-[12.5px] font-semibold truncate max-w-[120px]">{displayName}</span>
+            <span className="hidden sm:inline text-[12.5px] font-medium truncate max-w-[120px]">{displayName}</span>
           </Link>
         </div>
       </div>
@@ -108,10 +108,10 @@ export default function AppShell({ children }: { children: ReactNode }) {
             <Link
               key={item.href}
               href={item.href}
-              className="py-2 sm:py-2.5 px-3 sm:px-5 rounded-full text-[11.5px] sm:text-[13px] font-bold select-none transition-colors whitespace-nowrap"
+              className="py-2 sm:py-2.5 px-3 sm:px-5 rounded-full text-[11.5px] sm:text-[13px] font-medium select-none transition-colors whitespace-nowrap"
               style={{
                 color: active ? "#15171c" : "rgba(255,255,255,.6)",
-                background: active ? "#ffb100" : "transparent",
+                background: active ? "#74bd70" : "transparent",
               }}
             >
               {item.label}

@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 export function Eyebrow({ children, color = "#16a34a" }: { children: ReactNode; color?: string }) {
   return (
     <p
-      className="text-[11px] font-bold tracking-[.12em] uppercase mb-2"
+      className="text-[11px] font-semibold tracking-[.12em] uppercase mb-2"
       style={{ color }}
     >
       {children}
