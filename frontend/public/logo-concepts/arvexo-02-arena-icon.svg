@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-labelledby="title desc">
-  <title id="title">Arvexo — Arena</title>
-  <desc id="desc">Два контура обозначают границы цифровой арены.</desc>
-  <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="4">
-    <path d="M18 6H7v36h11" stroke="#F5F7F2"/>
-    <path d="M30 6h11v36H30" stroke="#F5F7F2"/>
-    <path d="M18 24h12" stroke="#79E34D"/>
-  </g>
-</svg>

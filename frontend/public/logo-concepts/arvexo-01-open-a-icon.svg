@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-labelledby="title desc">
-  <title id="title">Arvexo — Open A</title>
-  <desc id="desc">Открытая геометрическая буква A.</desc>
-  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M7 40 20.5 8" stroke="#F5F7F2" stroke-width="4"/>
-    <path d="M27.5 8 41 40" stroke="#F5F7F2" stroke-width="4"/>
-    <path d="M13.5 27.5h21" stroke="#79E34D" stroke-width="4"/>
-  </g>
-</svg>

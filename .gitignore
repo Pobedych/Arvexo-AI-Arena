@@ -12,9 +12,16 @@ CLAUDE.md
 # Local databases
 arena_dev.db
 *.db-journal
+*.db.backup-*
 
 # Generated audit evidence
 audit/
+audit-courses-*/
+
+# Local research and design prototypes
+research/
+design-prototype/
+frontend/public/logo-concepts/
 
 # Remotion dependencies and generated output
 remotion-video/node_modules/

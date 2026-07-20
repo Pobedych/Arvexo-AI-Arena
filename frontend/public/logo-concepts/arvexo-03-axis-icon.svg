@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-labelledby="title desc">
-  <title id="title">Arvexo — Axis</title>
-  <desc id="desc">Минималистичный знак пересечения двух траекторий.</desc>
-  <g fill="none" stroke-linecap="round" stroke-width="4">
-    <path d="m7 7 34 34" stroke="#F5F7F2"/>
-    <path d="M41 7 25.7 22.3" stroke="#79E34D"/>
-    <path d="M22.3 25.7 7 41" stroke="#F5F7F2"/>
-  </g>
-</svg>
