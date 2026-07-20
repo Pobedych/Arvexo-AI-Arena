@@ -195,6 +195,7 @@ class LessonProgress(TimestampMixin, Base):
     status: Mapped[LessonStatus] = mapped_column(Enum(LessonStatus), default=LessonStatus.not_started, nullable=False)
     best_score: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     max_score: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    current_block: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 

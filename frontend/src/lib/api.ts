@@ -76,6 +76,7 @@ export type Lesson = {
   theory: string;
   order: number;
   status: string;
+  current_block: number;
   steps: LessonStep[];
   questions: Question[];
 };

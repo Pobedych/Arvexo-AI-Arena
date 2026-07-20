@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.api.deps import get_current_user
 from app.db.session import get_db
 from app.models.entities import ArenaUser, ContentStatus, Lesson, LessonProgress, LessonStatus, Question, Section, Track, now_utc
-from app.schemas.api import AnswerIn, LessonOut, LessonSubmitIn, QuestionOut, TrackOut
+from app.schemas.api import AnswerIn, LessonOut, LessonProgressUpdate, LessonSubmitIn, QuestionOut, TrackOut
 from app.services.gamification import activity_history, record_activity, sync_xp, weekly_activity
 from app.services.grading import grade_question
 
@@ -117,13 +117,15 @@ def get_ai_track(db: Session = Depends(get_db), current_user: ArenaUser = Depend
 @router.get("/lessons/{lesson_id}", response_model=LessonOut)
 def get_lesson(lesson_id: UUID, db: Session = Depends(get_db), current_user: ArenaUser = Depends(get_current_user)):
     lesson, progress = _accessible_lesson(db, current_user, lesson_id)
+    progress_row = progress.get(str(lesson.id))
     return {
         "id": lesson.id,
         "title": lesson.title,
         "summary": lesson.summary,
         "theory": lesson.theory,
         "order": lesson.order,
-        "status": progress.get(str(lesson.id)).status.value if progress.get(str(lesson.id)) else "not_started",
+        "status": progress_row.status.value if progress_row else "not_started",
+        "current_block": progress_row.current_block if progress_row else 0,
         "steps": [{"id": step.id, "title": step.title, "body": step.body, "order": step.order} for step in lesson.steps],
         "questions": [
             QuestionOut(id=q.id, prompt=q.prompt, type=q.type.value, options=q.options, configuration=q.configuration, points=q.points, order=q.order)
@@ -131,6 +133,31 @@ def get_lesson(lesson_id: UUID, db: Session = Depends(get_db), current_user: Are
             if q.status == ContentStatus.published
         ],
     }
+
+
+@router.put("/lessons/{lesson_id}/progress")
+def save_lesson_progress(
+    lesson_id: UUID,
+    payload: LessonProgressUpdate,
+    db: Session = Depends(get_db),
+    current_user: ArenaUser = Depends(get_current_user),
+):
+    lesson, progress = _accessible_lesson(db, current_user, lesson_id)
+    progress_row = progress.get(str(lesson.id))
+    if not progress_row:
+        progress_row = LessonProgress(
+            user_id=current_user.id,
+            lesson_id=lesson.id,
+            status=LessonStatus.in_progress,
+            current_block=payload.current_block,
+        )
+        db.add(progress_row)
+    else:
+        progress_row.current_block = payload.current_block
+        if progress_row.status == LessonStatus.not_started:
+            progress_row.status = LessonStatus.in_progress
+    db.commit()
+    return {"current_block": progress_row.current_block}
 
 
 @router.post("/lessons/{lesson_id}/submit")
