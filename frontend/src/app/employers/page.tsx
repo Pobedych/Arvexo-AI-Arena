@@ -1,14 +1,12 @@
 import Link from "next/link";
+import { ArvexoLogo } from "@/components/ArvexoLogo";
 
 export default function Employers() {
   return (
     <div className="min-h-screen bg-white">
       <div className="flex justify-between items-center gap-2 w-[min(1120px,calc(100%-32px))] sm:w-[min(1120px,calc(100%-48px))] mx-auto py-4 sm:py-6.5 border-b border-[rgba(21,23,28,.08)]">
         <Link href="/" className="flex items-center gap-2 sm:gap-2.5 hover:opacity-80 transition-opacity min-w-0">
-          <span className="w-[30px] h-[30px] rounded-lg bg-[#15171c] grid place-items-center text-white font-extrabold text-[13px] font-[family-name:var(--font-display)] shrink-0">
-            A
-          </span>
-          <strong className="text-[15px] tracking-tight whitespace-nowrap">Arvexo Arena</strong>
+          <ArvexoLogo />
           <span className="hidden sm:inline text-[11px] text-[#6b6f76] bg-[#f6f4ee] rounded-full py-1 px-2.5 font-bold whitespace-nowrap">Для работодателей</span>
         </Link>
         <Link

@@ -57,3 +57,273 @@
   0%, 100% { opacity: 1; }
   50% { opacity: .45; }
 }
+
+/* Landing motion: hierarchy, feedback and scroll state. */
+.landing-page {
+  --landing-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --landing-ease-spring: cubic-bezier(0.22, 1.4, 0.36, 1);
+}
+
+.landing-page-progress {
+  display: none;
+}
+
+@supports (animation-timeline: scroll()) {
+  .landing-page-progress {
+    position: fixed;
+    inset: 0 0 auto;
+    z-index: 50;
+    display: block;
+    height: 2px;
+    transform: scaleX(0);
+    transform-origin: 0 50%;
+    background: #74bd70;
+    animation: landing-page-progress linear both;
+    animation-timeline: scroll(root block);
+  }
+}
+
+@keyframes landing-page-progress {
+  to { transform: scaleX(1); }
+}
+
+.landing-header {
+  animation: landing-header-enter 720ms var(--landing-ease-out) both;
+}
+
+@keyframes landing-header-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-16px);
+  }
+}
+
+.landing-brand-mark {
+  transition: transform 420ms var(--landing-ease-spring), border-color 260ms ease;
+}
+
+.landing-brand:hover .landing-brand-mark,
+.landing-brand:focus-visible .landing-brand-mark {
+  transform: translateY(-1px) scale(1.025);
+}
+
+.landing-nav-link {
+  transition: color 220ms ease, background 220ms ease, transform 220ms var(--landing-ease-out);
+}
+
+.landing-nav-link:hover {
+  transform: translateY(-2px);
+}
+
+[data-landing-reveal] {
+  opacity: 0;
+  transform: translateY(28px) scale(.985);
+  transition: opacity 760ms var(--landing-ease-out), transform 760ms var(--landing-ease-out);
+  transition-delay: var(--landing-reveal-delay, 0ms);
+}
+
+[data-landing-reveal].is-visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.landing-hero-copy[data-landing-reveal] {
+  transform: none;
+}
+
+.landing-hero-word {
+  display: inline-block;
+}
+
+.landing-goal-form {
+  --landing-reveal-delay: 260ms;
+}
+
+.landing-goal-composer {
+  transition: transform 320ms var(--landing-ease-out), border-color 260ms ease;
+}
+
+.landing-goal-composer:focus-within {
+  transform: translateY(-3px) scale(1.006);
+}
+
+.landing-submit {
+  transition: transform 260ms var(--landing-ease-spring), background 160ms ease;
+}
+
+.landing-submit:hover {
+  transform: translateY(-2px) rotate(-7deg) scale(1.05);
+}
+
+.landing-goal-suggestion {
+  transition: transform 260ms var(--landing-ease-out), background 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.landing-goal-suggestion:hover {
+  transform: translateY(-3px);
+}
+
+.landing-goal-suggestion:active {
+  transform: translateY(0) scale(.97);
+}
+
+.landing-recommendation {
+  animation: landing-recommendation-enter 560ms var(--landing-ease-spring) both;
+}
+
+@keyframes landing-recommendation-enter {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(.975);
+  }
+}
+
+.landing-mode-row {
+  position: relative;
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 560ms var(--landing-ease-out), transform 360ms var(--landing-ease-out), background 260ms ease;
+}
+
+.landing-mode-row::before {
+  content: "";
+  position: absolute;
+  top: 18px;
+  bottom: 18px;
+  left: 0;
+  width: 2px;
+  transform: scaleY(0);
+  transform-origin: 50% 100%;
+  border-radius: 2px;
+  background: #74bd70;
+  transition: transform 360ms var(--landing-ease-out);
+}
+
+.landing-mode-list.is-visible .landing-mode-row {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.landing-mode-list.is-visible .landing-mode-row:nth-child(2) { transition-delay: 90ms; }
+.landing-mode-list.is-visible .landing-mode-row:nth-child(3) { transition-delay: 180ms; }
+
+.landing-mode-list.is-visible .landing-mode-row:hover,
+.landing-mode-list.is-visible .landing-mode-row:focus-visible {
+  transform: translateX(10px);
+  transition-delay: 0ms;
+}
+
+.landing-mode-row:hover::before,
+.landing-mode-row:focus-visible::before {
+  transform: scaleY(1);
+}
+
+.landing-tournament {
+  transition: transform 500ms var(--landing-ease-out), border-color 300ms ease;
+}
+
+.landing-tournament:hover {
+  transform: translateY(-6px);
+  border-color: rgba(92, 169, 89, .42);
+}
+
+.landing-tournament-fact,
+.landing-profile-item {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 560ms var(--landing-ease-out), transform 560ms var(--landing-ease-out);
+}
+
+.landing-tournament.is-visible .landing-tournament-fact,
+.landing-profile-story.is-visible .landing-profile-item {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.landing-tournament.is-visible .landing-tournament-fact:nth-child(2),
+.landing-profile-story.is-visible .landing-profile-item:nth-child(2) { transition-delay: 90ms; }
+
+.landing-tournament.is-visible .landing-tournament-fact:nth-child(3),
+.landing-profile-story.is-visible .landing-profile-item:nth-child(3) { transition-delay: 180ms; }
+
+.landing-profile-story a {
+  transition: gap 280ms var(--landing-ease-out), color 180ms ease;
+}
+
+.landing-profile-story a:hover {
+  gap: 18px;
+}
+
+.landing-employers {
+  transition: transform 500ms var(--landing-ease-out);
+}
+
+.landing-employers:hover {
+  transform: translateY(-6px);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .landing-hero-copy.is-visible .landing-hero-word {
+    animation: landing-hero-word-enter 880ms var(--landing-ease-spring) both;
+    animation-delay: calc(var(--word-index) * 90ms + 100ms);
+  }
+
+  .landing-hero-copy.is-visible > p {
+    animation: landing-hero-copy-enter 720ms var(--landing-ease-out) 420ms both;
+  }
+
+  @keyframes landing-hero-word-enter {
+    from {
+      opacity: 0;
+      transform: translateY(.65em) rotate(1.5deg);
+    }
+  }
+
+  @keyframes landing-hero-copy-enter {
+    from {
+      opacity: 0;
+      transform: translateY(14px);
+    }
+  }
+}
+
+@media (max-width: 680px) {
+  .landing-mode-list.is-visible .landing-mode-row:hover,
+  .landing-mode-list.is-visible .landing-mode-row:focus-visible {
+    transform: translateX(4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-page-progress {
+    display: none;
+  }
+
+  .landing-header,
+  .landing-recommendation,
+  .landing-hero-word,
+  .landing-hero-copy > p {
+    animation: none;
+  }
+
+  [data-landing-reveal],
+  .landing-mode-row,
+  .landing-tournament-fact,
+  .landing-profile-item {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  .landing-brand-mark,
+  .landing-nav-link,
+  .landing-goal-composer,
+  .landing-submit,
+  .landing-goal-suggestion,
+  .landing-mode-row::before,
+  .landing-tournament,
+  .landing-profile-story a,
+  .landing-employers {
+    transition: none;
+  }
+}

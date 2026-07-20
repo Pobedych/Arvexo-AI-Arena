@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import { ArvexoLogo } from "@/components/ArvexoLogo";
 import { api, STREAK_UPDATED_EVENT, type ApiUser } from "@/lib/api";
 
 function streakLabel(days: number) {
@@ -24,6 +25,8 @@ const dockItems = [
 export default function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [user, setUser] = useState<ApiUser | null>(null);
+  const streakDetailsRef = useRef<HTMLDetailsElement>(null);
+  const levelDetailsRef = useRef<HTMLDetailsElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -43,6 +46,18 @@ export default function AppShell({ children }: { children: ReactNode }) {
     };
   }, [pathname]);
 
+  useEffect(() => {
+    const closeHeaderPanels = (event: PointerEvent) => {
+      const target = event.target as Node;
+      [streakDetailsRef.current, levelDetailsRef.current].forEach((details) => {
+        if (details?.open && !details.contains(target)) details.open = false;
+      });
+    };
+
+    document.addEventListener("pointerdown", closeHeaderPanels);
+    return () => document.removeEventListener("pointerdown", closeHeaderPanels);
+  }, []);
+
   const displayName = user?.display_name ?? "Пользователь";
   const initials = displayName
     .split(/\s+/)
@@ -51,34 +66,106 @@ export default function AppShell({ children }: { children: ReactNode }) {
     .map((part) => part[0])
     .join("")
     .toUpperCase();
+  const xpPerLevel = 30;
+  const levelXp = user ? user.xp % xpPerLevel : 0;
+  const xpToNextLevel = xpPerLevel - levelXp;
+  const levelProgress = Math.round((levelXp / xpPerLevel) * 100);
 
   return (
     <div className="min-h-dvh bg-[#f6f4ee] flex flex-col">
       {/* header */}
       <div className="sticky top-0 z-20 flex items-center justify-between gap-2 px-4 sm:px-7 py-3 sm:py-4.5 border-b border-[rgba(21,23,28,.07)] bg-white">
         <Link href="/" className="flex items-center gap-2 sm:gap-2.5 hover:opacity-80 transition-opacity shrink-0">
-          <span className="w-8 h-8 rounded-[9px] bg-[#15171c] grid place-items-center text-[#74bd70] font-semibold text-[13px] font-[family-name:var(--font-display)]">
-            A
-          </span>
-          <strong className="hidden sm:inline text-[14.5px] font-semibold tracking-tight whitespace-nowrap">Arvexo Arena</strong>
+          <ArvexoLogo wordmarkClassName="hidden sm:inline" />
         </Link>
         <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
           {user && (
-            <div className="hidden md:flex items-center gap-1.5 bg-[#15171c] text-white rounded-full py-1.5 px-3.5 text-xs font-medium whitespace-nowrap">
-              <span
-                aria-label={user.streak_extended_today ? "Серия продлена сегодня" : "Серия ещё не продлена сегодня"}
-                className={user.streak_extended_today ? "text-[#74bd70]" : "text-white/35"}
-                role="img"
+            <details ref={streakDetailsRef} name="header-progress" className="group relative block">
+              <summary
+                aria-label="Подробнее о серии занятий"
+                className="flex cursor-pointer list-none items-center gap-1.5 rounded-full bg-[#15171c] px-3.5 py-1.5 text-xs font-medium text-white whitespace-nowrap transition-transform hover:-translate-y-px focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16a34a] active:scale-[.98] [&::-webkit-details-marker]:hidden"
               >
-                ↗
-              </span>{" "}
-              {user.current_streak} {streakLabel(user.current_streak)}
-            </div>
+                <span aria-hidden="true" className={user.streak_extended_today ? "text-[#74bd70]" : "text-white/45"}>
+                  ↗
+                </span>
+                {user.current_streak} {streakLabel(user.current_streak)}
+              </summary>
+              <div className="absolute right-0 top-[calc(100%+10px)] z-30 w-[300px] rounded-[16px] border border-[rgba(21,23,28,.1)] bg-white p-4 text-[#15171c] shadow-[0_18px_48px_-28px_rgba(21,23,28,.35)]">
+                <strong className="block text-[14px] font-semibold">Серия занятий</strong>
+                <p className="mt-1 text-[11.5px] leading-relaxed text-[#6b6f76]">
+                  Урок, практика или турнир засчитываются как активный день.
+                </p>
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  <div className="rounded-[12px] bg-[#eef5ec] p-3">
+                    <span className="block text-[10px] text-[#5b6558]">Сейчас</span>
+                    <strong className="mt-1 block text-[18px] font-semibold text-[#2f742d]">
+                      {user.current_streak} {streakLabel(user.current_streak)}
+                    </strong>
+                  </div>
+                  <div className="rounded-[12px] bg-[#f6f4ee] p-3">
+                    <span className="block text-[10px] text-[#6b6f76]">Лучший результат</span>
+                    <strong className="mt-1 block text-[18px] font-semibold">
+                      {user.longest_streak} {streakLabel(user.longest_streak)}
+                    </strong>
+                  </div>
+                </div>
+                <p
+                  className={`mt-3 rounded-[10px] px-3 py-2 text-[11.5px] leading-relaxed ${
+                    user.streak_extended_today ? "bg-[#e7f3e4] text-[#2f742d]" : "bg-[#f6f4ee] text-[#6b6f76]"
+                  }`}
+                >
+                  {user.streak_extended_today ? "Сегодня серия уже продлена." : "Сегодня серия ещё не продлена."}
+                </p>
+                <Link
+                  href="/app/profile"
+                  className="mt-3 inline-flex min-h-9 items-center text-[11.5px] font-semibold text-[#2f742d] hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16a34a]"
+                >
+                  Посмотреть активность
+                </Link>
+              </div>
+            </details>
           )}
           {user && (
-            <div className="hidden md:flex items-center gap-1.5 bg-[#eff5ed] rounded-full py-1.5 px-3.5 text-xs font-medium whitespace-nowrap">
-              <span className="text-[#52a24f]">★</span> Уровень {user.level}
-            </div>
+            <details ref={levelDetailsRef} name="header-progress" className="group relative block">
+              <summary
+                aria-label="Подробнее об уровне"
+                className="flex cursor-pointer list-none items-center gap-1.5 rounded-full bg-[#eff5ed] px-3.5 py-1.5 text-xs font-medium whitespace-nowrap transition-transform hover:-translate-y-px focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16a34a] active:scale-[.98] [&::-webkit-details-marker]:hidden"
+              >
+                <span aria-hidden="true" className="text-[#52a24f]">★</span>
+                Уровень {user.level}
+              </summary>
+              <div className="absolute right-0 top-[calc(100%+10px)] z-30 w-[300px] rounded-[16px] border border-[rgba(21,23,28,.1)] bg-white p-4 text-[#15171c] shadow-[0_18px_48px_-28px_rgba(21,23,28,.35)]">
+                <strong className="block text-[14px] font-semibold">Уровень {user.level}</strong>
+                <p className="mt-1 text-[11.5px] leading-relaxed text-[#6b6f76]">
+                  Получай XP за завершённые уроки и повышай уровень подготовки.
+                </p>
+                <div className="mt-4 flex items-end justify-between gap-4">
+                  <div>
+                    <span className="block text-[10px] text-[#6b6f76]">Всего заработано</span>
+                    <strong className="mt-1 block text-[18px] font-semibold text-[#2f742d]">{user.xp} XP</strong>
+                  </div>
+                  <span className="text-right text-[10px] leading-relaxed text-[#6b6f76]">
+                    Ещё {xpToNextLevel} XP<br />до уровня {user.level + 1}
+                  </span>
+                </div>
+                <div
+                  role="progressbar"
+                  aria-label={`Прогресс до уровня ${user.level + 1}`}
+                  aria-valuemin={0}
+                  aria-valuemax={xpPerLevel}
+                  aria-valuenow={levelXp}
+                  className="mt-3 h-2 overflow-hidden rounded-full bg-[#e8e8e3]"
+                >
+                  <div className="h-full rounded-full bg-[#74bd70]" style={{ width: `${levelProgress}%` }} />
+                </div>
+                <Link
+                  href="/app/profile"
+                  className="mt-3 inline-flex min-h-9 items-center text-[11.5px] font-semibold text-[#2f742d] hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16a34a]"
+                >
+                  Открыть профиль
+                </Link>
+              </div>
+            </details>
           )}
           <Link
             href="/app/profile"

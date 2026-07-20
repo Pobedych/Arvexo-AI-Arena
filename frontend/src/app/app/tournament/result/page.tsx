@@ -115,7 +115,7 @@ function TournamentResultBody({
       </div>
 
       {!result.review_available && (
-        <div className="rounded-2xl bg-[#ffb100] p-5 mb-5.5">
+        <div className="rounded-2xl bg-[#74bd70] p-5 mb-5.5">
           <h3 className="text-sm font-extrabold mb-1">Разбор откроется после завершения турнира</h3>
           <p className="text-[12.5px] text-[#15171c]/65">Баллы уже сохранены, правильные ответы backend пока не раскрывает.</p>
         </div>
@@ -192,7 +192,7 @@ function Metric({ label, value, suffix = "", dark = false }: { label: string; va
   return (
     <div className={`rounded-[24px] p-6 ${dark ? "bg-[#15171c] text-white" : "bg-white border border-[rgba(21,23,28,.07)]"}`}>
       <p className={`${dark ? "text-white/50" : "text-[#6b6f76]"} text-[10.5px] font-bold tracking-[.1em] uppercase mb-2`}>{label}</p>
-      <strong className={`font-[family-name:var(--font-display)] text-[44px] block ${dark ? "text-[#ffb100]" : "text-[#16a34a]"}`}>
+      <strong className={`font-[family-name:var(--font-display)] text-[44px] block ${dark ? "text-[#74bd70]" : "text-[#16a34a]"}`}>
         {value}<span className={`text-[18px] ${dark ? "text-white/40" : "text-[#6b6f76]"}`}>{suffix}</span>
       </strong>
     </div>

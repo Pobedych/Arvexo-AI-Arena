@@ -2,7 +2,10 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useEffect, useState } from "react";
+import { type CSSProperties, FormEvent, useEffect, useState } from "react";
+
+import { ArvexoLogo } from "@/components/ArvexoLogo";
+import { LandingMotionLayer } from "@/components/LandingMotion";
 
 type GoalRecommendation = {
   title: string;
@@ -102,7 +105,8 @@ export default function Landing() {
   }
 
   return (
-    <div className="min-h-dvh bg-[#f6f4ee] text-[#15171c]">
+    <div className="landing-page min-h-dvh bg-[#f6f4ee] text-[#15171c]">
+      <LandingMotionLayer />
       <a
         href="#main"
         className="fixed left-4 top-3 z-50 -translate-y-20 rounded-full bg-[#15171c] px-4 py-2 text-xs text-white focus:translate-y-0"
@@ -110,23 +114,20 @@ export default function Landing() {
         К содержанию
       </a>
 
-      <header className="sticky top-0 z-40 border-b border-[rgba(21,23,28,.08)] bg-white/94 backdrop-blur-md">
+      <header className="landing-header sticky top-0 z-40 border-b border-[rgba(21,23,28,.08)] bg-white/94 backdrop-blur-md">
         <div className="mx-auto flex min-h-[68px] w-[min(1180px,calc(100%-32px))] items-center gap-6">
-          <Link href="/" aria-label="Arvexo Arena, главная" className="mr-auto flex shrink-0 items-center gap-2.5">
-            <span className="grid h-8 w-8 place-items-center rounded-[9px] bg-[#15171c] font-[family-name:var(--font-display)] text-[13px] font-semibold text-[#74bd70]">
-              A
-            </span>
-            <strong className="text-[14px] font-semibold tracking-tight">Arvexo Arena</strong>
+          <Link href="/" aria-label="Arvexo Arena, главная" className="landing-brand mr-auto flex shrink-0 items-center gap-2.5">
+            <ArvexoLogo markClassName="landing-brand-mark" />
           </Link>
 
           <nav aria-label="Основная навигация" className="hidden items-center gap-1 md:flex">
-            <Link href="/tracks/ai" className="rounded-full px-3 py-2 text-[12.5px] font-medium text-[#5f636b] transition-colors hover:bg-[#f1f1ef] hover:text-[#15171c]">
+            <Link href="/tracks/ai" className="landing-nav-link rounded-full px-3 py-2 text-[12.5px] font-medium text-[#5f636b] transition-colors hover:bg-[#f1f1ef] hover:text-[#15171c]">
               AI Track
             </Link>
-            <Link href="/tournaments" className="rounded-full px-3 py-2 text-[12.5px] font-medium text-[#5f636b] transition-colors hover:bg-[#f1f1ef] hover:text-[#15171c]">
+            <Link href="/tournaments" className="landing-nav-link rounded-full px-3 py-2 text-[12.5px] font-medium text-[#5f636b] transition-colors hover:bg-[#f1f1ef] hover:text-[#15171c]">
               Турниры
             </Link>
-            <Link href="/employers" className="rounded-full px-3 py-2 text-[12.5px] font-medium text-[#5f636b] transition-colors hover:bg-[#f1f1ef] hover:text-[#15171c]">
+            <Link href="/employers" className="landing-nav-link rounded-full px-3 py-2 text-[12.5px] font-medium text-[#5f636b] transition-colors hover:bg-[#f1f1ef] hover:text-[#15171c]">
               Работодателям
             </Link>
           </nav>
@@ -142,20 +143,22 @@ export default function Landing() {
 
       <main id="main">
         <section className="mx-auto flex min-h-[calc(100dvh-68px)] w-[min(920px,calc(100%-32px))] flex-col items-center justify-center py-16 sm:py-20">
-          <div className="max-w-[880px] text-center">
+          <div className="landing-hero-copy max-w-[880px] text-center" data-landing-reveal>
             <h1 className="text-balance text-[clamp(46px,7.2vw,104px)] font-medium leading-[.96] tracking-[-.065em]">
-              К чему ты хочешь подготовиться?
+              <span className="landing-hero-word" style={{ "--word-index": 0 } as CSSProperties}>К чему</span>{" "}
+              <span className="landing-hero-word" style={{ "--word-index": 1 } as CSSProperties}>ты хочешь</span>{" "}
+              <span className="landing-hero-word" style={{ "--word-index": 2 } as CSSProperties}>подготовиться?</span>
             </h1>
             <p className="mx-auto mt-6 max-w-[610px] text-[clamp(15px,1.5vw,19px)] leading-relaxed text-[#5f636b]">
               Опиши цель. Arena предложит урок, практику или ближайший турнир.
             </p>
           </div>
 
-          <form onSubmit={submitGoal} className="mt-11 w-full max-w-[760px] sm:mt-12">
+          <form onSubmit={submitGoal} className="landing-goal-form mt-11 w-full max-w-[760px] sm:mt-12" data-landing-reveal>
             <label htmlFor="learning-goal" className="mb-2.5 ml-4 block text-[12.5px] font-medium text-[#5f636b]">
               Спроси Arena
             </label>
-            <div className="grid grid-cols-[minmax(0,1fr)_44px] items-end gap-3 rounded-[28px] border border-[rgba(21,23,28,.16)] bg-white p-4 pl-5 shadow-[0_18px_48px_-38px_rgba(21,23,28,.35)] transition-colors focus-within:border-[#5ca959]">
+            <div className="landing-goal-composer grid grid-cols-[minmax(0,1fr)_44px] items-end gap-3 rounded-[28px] border border-[rgba(21,23,28,.16)] bg-white p-4 pl-5 shadow-[0_18px_48px_-38px_rgba(21,23,28,.35)] transition-colors focus-within:border-[#5ca959]">
               <textarea
                 id="learning-goal"
                 name="learning_goal"
@@ -169,7 +172,7 @@ export default function Landing() {
               <button
                 type="submit"
                 aria-label="Подобрать следующий шаг"
-                className="grid h-11 w-11 place-items-center rounded-full bg-[#74bd70] text-lg font-medium text-[#102011] transition-transform hover:-translate-y-px focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3f7e3d] active:scale-[.96]"
+                className="landing-submit grid h-11 w-11 place-items-center rounded-full bg-[#74bd70] text-lg font-medium text-[#102011] transition-transform hover:-translate-y-px focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3f7e3d] active:scale-[.96]"
               >
                 →
               </button>
@@ -185,7 +188,7 @@ export default function Landing() {
                   key={value}
                   type="button"
                   onClick={() => selectGoal(value)}
-                  className="min-h-[38px] rounded-full border border-[rgba(21,23,28,.1)] bg-transparent px-4 text-[12px] text-[#5f636b] transition-colors hover:border-[rgba(21,23,28,.18)] hover:bg-white hover:text-[#15171c] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#5ca959]"
+                  className="landing-goal-suggestion min-h-[38px] rounded-full border border-[rgba(21,23,28,.1)] bg-transparent px-4 text-[12px] text-[#5f636b] transition-colors hover:border-[rgba(21,23,28,.18)] hover:bg-white hover:text-[#15171c] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#5ca959]"
                 >
                   {index === 0 ? "Разобраться в ML" : index === 1 ? "Проверить себя" : "Выбрать турнир"}
                 </button>
@@ -193,7 +196,7 @@ export default function Landing() {
             </div>
 
             {recommendation && (
-              <div aria-live="polite" className="mt-3.5 grid items-center gap-5 rounded-[22px] border border-[#78b875] bg-[#edf4eb] p-5 text-left sm:grid-cols-[minmax(0,1fr)_auto]">
+              <div key={recommendation.href} aria-live="polite" className="landing-recommendation mt-3.5 grid items-center gap-5 rounded-[22px] border border-[#78b875] bg-[#edf4eb] p-5 text-left sm:grid-cols-[minmax(0,1fr)_auto]">
                 <div>
                   <span className="text-[11px] font-semibold text-[#377236]">Следующий шаг</span>
                   <strong className="mt-1 block text-[15px] font-semibold">{recommendation.title}</strong>
@@ -208,15 +211,15 @@ export default function Landing() {
         </section>
 
         <section className="mx-auto w-[min(1120px,calc(100%-32px))] py-24 sm:py-32" aria-labelledby="actions-title">
-          <h2 id="actions-title" className="max-w-[760px] text-balance text-[clamp(38px,5vw,76px)] font-medium leading-[.98] tracking-[-.055em]">
+          <h2 id="actions-title" className="max-w-[760px] text-balance text-[clamp(38px,5vw,76px)] font-medium leading-[.98] tracking-[-.055em]" data-landing-reveal>
             Что можно сделать сейчас
           </h2>
-          <div className="mt-12 border-t border-[rgba(21,23,28,.16)]">
+          <div className="landing-mode-list mt-12 border-t border-[rgba(21,23,28,.16)]" data-landing-reveal>
             {modes.map((mode) => (
               <Link
                 key={mode.label}
                 href={mode.href}
-                className="group grid min-h-[126px] items-center gap-5 border-b border-[rgba(21,23,28,.1)] py-6 transition-[background-color,padding] hover:bg-white hover:px-4 md:grid-cols-[140px_minmax(220px,.75fr)_minmax(260px,1fr)_28px] md:gap-7"
+                className="landing-mode-row group grid min-h-[126px] items-center gap-5 border-b border-[rgba(21,23,28,.1)] py-6 hover:bg-white md:grid-cols-[140px_minmax(220px,.75fr)_minmax(260px,1fr)_28px] md:gap-7"
               >
                 <span className="text-[12px] text-[#72767d]">{mode.label}</span>
                 <strong className="text-[20px] font-medium tracking-[-.025em]">{mode.title}</strong>
@@ -230,7 +233,7 @@ export default function Landing() {
         </section>
 
         <section className="mx-auto w-[min(1120px,calc(100%-32px))] py-24 sm:py-32" aria-labelledby="tournament-title">
-          <article className="grid min-h-[580px] overflow-hidden rounded-[28px] border border-[rgba(21,23,28,.1)] bg-[#e8f1e5] lg:grid-cols-[minmax(0,1.3fr)_minmax(320px,.7fr)]">
+          <article className="landing-tournament grid min-h-[580px] overflow-hidden rounded-[28px] border border-[rgba(21,23,28,.1)] bg-[#e8f1e5] lg:grid-cols-[minmax(0,1.3fr)_minmax(320px,.7fr)]" data-landing-reveal>
             <div className="flex min-h-[500px] flex-col items-start p-8 sm:p-14 lg:p-[72px]">
               <span className="text-[12px] font-medium text-[#377236]">Ближайший турнир</span>
               <h2 id="tournament-title" className="mt-auto max-w-[750px] text-balance text-[clamp(48px,6vw,96px)] font-medium leading-[.92] tracking-[-.07em]">
@@ -249,7 +252,7 @@ export default function Landing() {
                 ["Формат", "Личный зачёт"],
                 ["Темы", "Данные, модели, метрики"],
               ].map(([term, value]) => (
-                <div key={term} className="border-b border-[rgba(21,23,28,.1)] py-5 last:border-b-0">
+                <div key={term} className="landing-tournament-fact border-b border-[rgba(21,23,28,.1)] py-5 last:border-b-0">
                   <dt className="text-[11px] text-[#72767d]">{term}</dt>
                   <dd className="mt-2 text-[14px] font-medium">{value}</dd>
                 </div>
@@ -259,7 +262,7 @@ export default function Landing() {
         </section>
 
         <section className="mx-auto w-[min(1120px,calc(100%-32px))] py-24 sm:py-32" aria-labelledby="profile-title">
-          <div className="grid gap-14 border-t border-[rgba(21,23,28,.16)] pt-14 lg:grid-cols-[minmax(0,1fr)_minmax(380px,.8fr)] lg:gap-28">
+          <div className="landing-profile-story grid gap-14 border-t border-[rgba(21,23,28,.16)] pt-14 lg:grid-cols-[minmax(0,1fr)_minmax(380px,.8fr)] lg:gap-28" data-landing-reveal>
             <div>
               <h2 id="profile-title" className="text-balance text-[clamp(38px,5vw,76px)] font-medium leading-[.98] tracking-[-.055em]">
                 Весь прогресс в одном профиле
@@ -277,7 +280,7 @@ export default function Landing() {
                 ["Практика", "Понятно, какие темы повторить"],
                 ["Турниры", "Результаты сохраняются в профиле"],
               ].map(([label, value], index) => (
-                <li key={label} className={`border-b border-[rgba(21,23,28,.1)] py-6 ${index === 0 ? "pt-0" : ""}`}>
+                <li key={label} className={`landing-profile-item border-b border-[rgba(21,23,28,.1)] py-6 ${index === 0 ? "pt-0" : ""}`}>
                   <span className="block text-[11px] text-[#72767d]">{label}</span>
                   <strong className="mt-2 block text-[14px] font-medium">{value}</strong>
                 </li>
@@ -287,7 +290,7 @@ export default function Landing() {
         </section>
 
         <section className="mx-auto w-[min(1120px,calc(100%-32px))] py-24 sm:py-32" aria-labelledby="employers-title">
-          <div className="flex min-h-[500px] flex-col items-start justify-end rounded-[28px] bg-[#15171c] p-8 text-white sm:p-16">
+          <div className="landing-employers flex min-h-[500px] flex-col items-start justify-end rounded-[28px] bg-[#15171c] p-8 text-white sm:p-16" data-landing-reveal>
             <h2 id="employers-title" className="max-w-[850px] text-balance text-[clamp(38px,5vw,76px)] font-medium leading-[.98] tracking-[-.055em]">
               Результат, который можно показать
             </h2>
@@ -304,8 +307,7 @@ export default function Landing() {
       <footer className="mt-10 border-t border-[rgba(21,23,28,.1)]">
         <div className="mx-auto flex min-h-[140px] w-[min(1180px,calc(100%-32px))] flex-col justify-center gap-3 py-8 text-[12px] text-[#72767d] sm:flex-row sm:items-center sm:justify-between">
           <Link href="/" className="flex items-center gap-2.5 text-[#15171c]">
-            <span className="grid h-8 w-8 place-items-center rounded-[9px] bg-[#15171c] font-[family-name:var(--font-display)] text-[13px] font-semibold text-[#74bd70]">A</span>
-            <strong className="font-semibold">Arvexo Arena</strong>
+            <ArvexoLogo />
           </Link>
           <span>AI-обучение и соревнования для школьников</span>
         </div>

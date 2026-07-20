@@ -63,7 +63,7 @@ function LeaderboardView() {
       </div>
 
       {board.status !== "finished" && (
-        <div className="rounded-2xl bg-[#ffb100] p-5 mb-5.5">
+        <div className="rounded-2xl bg-[#74bd70] p-5 mb-5.5">
           <h3 className="text-sm font-extrabold mb-1">Таблица откроется после завершения турнира</h3>
           <p className="text-[12.5px] text-[#15171c]/65">
             Места и баллы участников станут видны, когда турнир перейдёт в статус «завершён».
@@ -83,7 +83,7 @@ function LeaderboardView() {
               className="flex items-center gap-3.5 py-3.5 px-4.5 border-b border-[rgba(21,23,28,.07)] last:border-b-0"
               style={{ background: row.is_you ? "rgba(22,163,74,.07)" : "transparent" }}
             >
-              <span className="w-[22px] font-extrabold text-[13px]" style={{ color: row.rank <= 3 ? "#ffb100" : "#6b6f76" }}>
+              <span className="w-[22px] font-extrabold text-[13px]" style={{ color: row.rank <= 3 ? "#4e9b4a" : "#6b6f76" }}>
                 {row.rank}
               </span>
               <span className="w-8 h-8 rounded-full bg-[#e8e6df] shrink-0" />
