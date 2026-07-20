@@ -129,6 +129,17 @@ type UserDetail = {
   invitations: Array<{ tournament_id: string; status: string }>;
 };
 
+type AuditLogRow = {
+  id: string;
+  admin_id: string;
+  admin_name: string;
+  action: string;
+  target_type: string;
+  target_id: string | null;
+  description: string;
+  created_at: string;
+};
+
 const tabs = [
   { id: "overview", label: "Обзор" },
   { id: "sections", label: "Разделы" },
@@ -136,6 +147,7 @@ const tabs = [
   { id: "questions", label: "Банк заданий" },
   { id: "tournaments", label: "Турниры" },
   { id: "users", label: "Пользователи" },
+  { id: "audit", label: "Журнал" },
 ] as const;
 
 type Tab = (typeof tabs)[number]["id"];
@@ -235,6 +247,7 @@ export default function AdminClient() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [users, setUsers] = useState<UserRow[]>([]);
+  const [auditLog, setAuditLog] = useState<AuditLogRow[]>([]);
   const [results, setResults] = useState<Record<string, ResultRow[]>>({});
   const [invitations, setInvitations] = useState<Record<string, InvitationRow[]>>({});
   const [attemptDetail, setAttemptDetail] = useState<AttemptDetail | null>(null);
@@ -291,13 +304,14 @@ export default function AdminClient() {
   async function loadAll() {
     setError("");
     try {
-      const [dash, trackRows, lessonRows, questionRows, tournamentRows, userRows] = await Promise.all([
+      const [dash, trackRows, lessonRows, questionRows, tournamentRows, userRows, auditRows] = await Promise.all([
         api<Dashboard>("/admin/dashboard"),
         api<Track[]>("/admin/tracks"),
         api<Lesson[]>("/admin/lessons"),
         api<Question[]>("/admin/questions"),
         api<Tournament[]>("/admin/tournaments"),
         api<UserRow[]>("/admin/users"),
+        api<AuditLogRow[]>("/admin/audit-log"),
       ]);
       setDashboard(dash);
       setTracks(trackRows);
@@ -305,6 +319,7 @@ export default function AdminClient() {
       setQuestions(questionRows);
       setTournaments(tournamentRows);
       setUsers(userRows);
+      setAuditLog(auditRows);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ошибка загрузки админки");
     }
@@ -1650,6 +1665,34 @@ export default function AdminClient() {
                 )}
               </div>
             ))}
+          </section>
+        )}
+
+        {active === "audit" && (
+          <section className="overflow-hidden rounded-[18px] border border-[rgba(21,23,28,.08)] bg-white">
+            <div className="border-b border-[rgba(21,23,28,.08)] px-5 py-4">
+              <h1 className="font-[family-name:var(--font-display)] text-[24px] font-semibold tracking-[-.02em]">Журнал действий</h1>
+              <p className="mt-1 text-[12.5px] text-[#6b6f76]">Последние 200 изменений, сделанных администраторами.</p>
+            </div>
+            {auditLog.map((entry) => (
+              <div key={entry.id} className="grid gap-2 border-b border-[rgba(21,23,28,.07)] px-5 py-4 last:border-b-0 sm:grid-cols-[150px_150px_1fr_170px] sm:items-center">
+                <div>
+                  <strong className="block text-[12.5px]">{entry.admin_name}</strong>
+                  <span className="text-[10.5px] text-[#858990]">{entry.action}</span>
+                </div>
+                <span className="w-fit rounded-[6px] bg-[#eef5eb] px-2 py-1 text-[10.5px] font-bold text-[#15803d]">
+                  {entry.target_type}
+                </span>
+                <div className="min-w-0">
+                  <p className="text-[12.5px] leading-relaxed">{entry.description || "Действие выполнено"}</p>
+                  {entry.target_id && <p className="truncate font-mono text-[10px] text-[#858990]">{entry.target_id}</p>}
+                </div>
+                <time className="text-[11.5px] text-[#6b6f76]" dateTime={entry.created_at}>
+                  {new Intl.DateTimeFormat("ru-RU", { dateStyle: "medium", timeStyle: "short" }).format(new Date(entry.created_at))}
+                </time>
+              </div>
+            ))}
+            {auditLog.length === 0 && <p className="p-8 text-center text-[13px] text-[#6b6f76]">Действий пока нет</p>}
           </section>
         )}
       </div>

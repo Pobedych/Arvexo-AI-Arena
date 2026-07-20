@@ -30,7 +30,7 @@ function TournamentView() {
   }, []);
 
   function refresh() {
-    Promise.all([api<Track>("/tracks/ai"), api<Tournament[]>("/tournaments")])
+    Promise.all([api<Track>("/tracks/current"), api<Tournament[]>("/tournaments")])
       .then(([trackData, tournamentData]) => {
         setTrack(trackData);
         setTournaments(tournamentData);
@@ -39,7 +39,7 @@ function TournamentView() {
   }
 
   useEffect(() => {
-    Promise.all([api<Track>("/tracks/ai"), api<Tournament[]>("/tournaments")])
+    Promise.all([api<Track>("/tracks/current"), api<Tournament[]>("/tournaments")])
       .then(([trackData, tournamentData]) => {
         setTrack(trackData);
         setTournaments(tournamentData);

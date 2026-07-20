@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 from app.api.deps import get_current_admin
 from app.db.session import get_db
 from app.models.entities import (
+    AdminActionLog,
     ArenaUser,
     ContentStatus,
     Lesson,
@@ -39,6 +40,7 @@ from app.schemas.api import (
     TournamentUpdateIn,
     TrackUpdateIn,
 )
+from app.services.audit import log_admin_action
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -293,16 +295,18 @@ def block_user(user_id: UUID, admin: ArenaUser = Depends(get_current_admin), db:
     if user.id == admin.id:
         raise HTTPException(status_code=400, detail="You cannot block yourself")
     user.is_active = False
+    log_admin_action(db, admin, "block_user", "user", user.id, f"Заблокирован пользователь {user.display_name}")
     db.commit()
     return {"ok": True, "is_active": user.is_active}
 
 
 @router.post("/users/{user_id}/unblock")
-def unblock_user(user_id: UUID, _: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
+def unblock_user(user_id: UUID, admin: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
     user = db.get(ArenaUser, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     user.is_active = True
+    log_admin_action(db, admin, "unblock_user", "user", user.id, f"Разблокирован пользователь {user.display_name}")
     db.commit()
     return {"ok": True, "is_active": user.is_active}
 
@@ -334,7 +338,7 @@ def _section_dict(section: Section) -> dict:
 
 
 @router.patch("/tracks/{track_id}")
-def update_track(track_id: UUID, payload: TrackUpdateIn, _: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
+def update_track(track_id: UUID, payload: TrackUpdateIn, admin: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
     track = db.get(Track, track_id)
     if not track:
         raise HTTPException(status_code=404, detail="Track not found")
@@ -343,30 +347,34 @@ def update_track(track_id: UUID, payload: TrackUpdateIn, _: ArenaUser = Depends(
         data["status"] = _content_status(data["status"])
     for key, value in data.items():
         setattr(track, key, value)
+    log_admin_action(db, admin, "update_track", "track", track.id, f"Обновлён трек {track.title}")
     db.commit()
     db.refresh(track)
     return {"id": track.id, "slug": track.slug, "title": track.title, "description": track.description, "status": track.status.value}
 
 
 @router.post("/sections")
-def create_section(payload: SectionCreateIn, _: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
+def create_section(payload: SectionCreateIn, admin: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
     if not db.get(Track, payload.track_id):
         raise HTTPException(status_code=404, detail="Track not found")
     section = Section(track_id=payload.track_id, title=payload.title, order=payload.order)
     db.add(section)
+    db.flush()
+    log_admin_action(db, admin, "create_section", "section", section.id, f"Создан раздел {section.title}")
     db.commit()
     db.refresh(section)
     return _section_dict(section)
 
 
 @router.patch("/sections/{section_id}")
-def update_section(section_id: UUID, payload: SectionUpdateIn, _: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
+def update_section(section_id: UUID, payload: SectionUpdateIn, admin: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
     section = db.get(Section, section_id)
     if not section:
         raise HTTPException(status_code=404, detail="Section not found")
     data = payload.model_dump(exclude_unset=True)
     for key, value in data.items():
         setattr(section, key, value)
+    log_admin_action(db, admin, "update_section", "section", section.id, f"Обновлён раздел {section.title}")
     db.commit()
     db.refresh(section)
     return _section_dict(section)
@@ -391,12 +399,13 @@ def _purge_lesson_dependencies(db: Session, lesson: Lesson) -> None:
 
 
 @router.delete("/sections/{section_id}")
-def delete_section(section_id: UUID, _: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
+def delete_section(section_id: UUID, admin: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
     section = db.get(Section, section_id)
     if not section:
         raise HTTPException(status_code=404, detail="Section not found")
     for lesson in section.lessons:
         _purge_lesson_dependencies(db, lesson)
+    log_admin_action(db, admin, "delete_section", "section", section.id, f"Удалён раздел {section.title}")
     db.delete(section)
     db.commit()
     return {"ok": True}
@@ -409,7 +418,7 @@ def list_lessons(_: ArenaUser = Depends(get_current_admin), db: Session = Depend
 
 
 @router.post("/lessons")
-def create_lesson(payload: LessonCreateIn, _: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
+def create_lesson(payload: LessonCreateIn, admin: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
     if not db.get(Section, payload.section_id):
         raise HTTPException(status_code=404, detail="Section not found")
     if not payload.theory.strip() and not payload.steps:
@@ -425,13 +434,15 @@ def create_lesson(payload: LessonCreateIn, _: ArenaUser = Depends(get_current_ad
         steps=[LessonStep(title=step.title, body=step.body, order=step.order) for step in payload.steps],
     )
     db.add(lesson)
+    db.flush()
+    log_admin_action(db, admin, "create_lesson", "lesson", lesson.id, f"Создан урок {lesson.title}")
     db.commit()
     db.refresh(lesson)
     return _lesson_dict(lesson)
 
 
 @router.patch("/lessons/{lesson_id}")
-def update_lesson(lesson_id: UUID, payload: LessonUpdateIn, _: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
+def update_lesson(lesson_id: UUID, payload: LessonUpdateIn, admin: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
     lesson = db.get(Lesson, lesson_id)
     if not lesson:
         raise HTTPException(status_code=404, detail="Lesson not found")
@@ -449,17 +460,19 @@ def update_lesson(lesson_id: UUID, payload: LessonUpdateIn, _: ArenaUser = Depen
         setattr(lesson, key, value)
     if steps is not None:
         lesson.steps = [LessonStep(title=step["title"], body=step["body"], order=step["order"]) for step in steps]
+    log_admin_action(db, admin, "update_lesson", "lesson", lesson.id, f"Обновлён урок {lesson.title}")
     db.commit()
     db.refresh(lesson)
     return _lesson_dict(lesson)
 
 
 @router.delete("/lessons/{lesson_id}")
-def delete_lesson(lesson_id: UUID, _: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
+def delete_lesson(lesson_id: UUID, admin: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
     lesson = db.get(Lesson, lesson_id)
     if not lesson:
         raise HTTPException(status_code=404, detail="Lesson not found")
     _purge_lesson_dependencies(db, lesson)
+    log_admin_action(db, admin, "delete_lesson", "lesson", lesson.id, f"Удалён урок {lesson.title}")
     db.delete(lesson)
     db.commit()
     return {"ok": True}
@@ -472,7 +485,7 @@ def list_questions(_: ArenaUser = Depends(get_current_admin), db: Session = Depe
 
 
 @router.post("/questions")
-def create_question(payload: QuestionCreateIn, _: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
+def create_question(payload: QuestionCreateIn, admin: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
     if payload.lesson_id and not db.get(Lesson, payload.lesson_id):
         raise HTTPException(status_code=404, detail="Lesson not found")
     question_type = _question_type(payload.type)
@@ -494,6 +507,8 @@ def create_question(payload: QuestionCreateIn, _: ArenaUser = Depends(get_curren
     )
     db.add(question)
     _reset_lesson_progress(db, question.lesson_id)
+    db.flush()
+    log_admin_action(db, admin, "create_question", "question", question.id, f"Создано задание {question.title}")
     db.commit()
     db.refresh(question)
     return _question_dict(question)
@@ -503,7 +518,7 @@ CONTENT_AFFECTING_QUESTION_FIELDS = {"lesson_id", "type", "options", "configurat
 
 
 @router.patch("/questions/{question_id}")
-def update_question(question_id: UUID, payload: QuestionUpdateIn, _: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
+def update_question(question_id: UUID, payload: QuestionUpdateIn, admin: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
     question = db.get(Question, question_id)
     if not question:
         raise HTTPException(status_code=404, detail="Question not found")
@@ -525,18 +540,20 @@ def update_question(question_id: UUID, payload: QuestionUpdateIn, _: ArenaUser =
         _reset_lesson_progress(db, data.get("lesson_id"))
     for key, value in data.items():
         setattr(question, key, value)
+    log_admin_action(db, admin, "update_question", "question", question.id, f"Обновлено задание {question.title}")
     db.commit()
     db.refresh(question)
     return _question_dict(question)
 
 
 @router.delete("/questions/{question_id}")
-def delete_question(question_id: UUID, _: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
+def delete_question(question_id: UUID, admin: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
     question = db.get(Question, question_id)
     if not question:
         raise HTTPException(status_code=404, detail="Question not found")
     _reset_lesson_progress(db, question.lesson_id)
     _purge_question_dependencies(db, question_id)
+    log_admin_action(db, admin, "delete_question", "question", question.id, f"Удалено задание {question.title}")
     db.delete(question)
     db.commit()
     return {"ok": True}
@@ -549,7 +566,7 @@ def list_tournaments(_: ArenaUser = Depends(get_current_admin), db: Session = De
 
 
 @router.post("/tournaments")
-def create_tournament(payload: TournamentCreateIn, _: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
+def create_tournament(payload: TournamentCreateIn, admin: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
     if not db.get(Track, payload.track_id):
         raise HTTPException(status_code=404, detail="Track not found")
     tournament = Tournament(
@@ -568,13 +585,14 @@ def create_tournament(payload: TournamentCreateIn, _: ArenaUser = Depends(get_cu
         if not db.get(Question, question_id):
             raise HTTPException(status_code=404, detail=f"Question not found: {question_id}")
         db.add(TournamentQuestion(tournament_id=tournament.id, question_id=question_id, order=order))
+    log_admin_action(db, admin, "create_tournament", "tournament", tournament.id, f"Создан турнир {tournament.title}")
     db.commit()
     db.refresh(tournament)
     return _tournament_dict(tournament)
 
 
 @router.patch("/tournaments/{tournament_id}")
-def update_tournament(tournament_id: UUID, payload: TournamentUpdateIn, _: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
+def update_tournament(tournament_id: UUID, payload: TournamentUpdateIn, admin: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
     tournament = db.get(Tournament, tournament_id)
     if not tournament:
         raise HTTPException(status_code=404, detail="Tournament not found")
@@ -585,13 +603,14 @@ def update_tournament(tournament_id: UUID, payload: TournamentUpdateIn, _: Arena
         data["status"] = _tournament_status(data["status"])
     for key, value in data.items():
         setattr(tournament, key, value)
+    log_admin_action(db, admin, "update_tournament", "tournament", tournament.id, f"Обновлён турнир {tournament.title}")
     db.commit()
     db.refresh(tournament)
     return _tournament_dict(tournament)
 
 
 @router.put("/tournaments/{tournament_id}/questions")
-def set_tournament_questions(tournament_id: UUID, payload: TournamentQuestionSetIn, _: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
+def set_tournament_questions(tournament_id: UUID, payload: TournamentQuestionSetIn, admin: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
     tournament = db.get(Tournament, tournament_id)
     if not tournament:
         raise HTTPException(status_code=404, detail="Tournament not found")
@@ -600,6 +619,7 @@ def set_tournament_questions(tournament_id: UUID, payload: TournamentQuestionSet
         if not db.get(Question, question_id):
             raise HTTPException(status_code=404, detail=f"Question not found: {question_id}")
         db.add(TournamentQuestion(tournament_id=tournament.id, question_id=question_id, order=order))
+    log_admin_action(db, admin, "set_tournament_questions", "tournament", tournament.id, f"Обновлён состав заданий: {len(payload.question_ids)}")
     db.commit()
     return {"ok": True, "question_count": len(payload.question_ids)}
 
@@ -620,7 +640,7 @@ def _validate_publishable(tournament: Tournament) -> None:
 
 
 @router.post("/tournaments/{tournament_id}/publish")
-def publish_tournament(tournament_id: UUID, _: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
+def publish_tournament(tournament_id: UUID, admin: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
     tournament = (
         db.query(Tournament)
         .options(selectinload(Tournament.questions).selectinload(TournamentQuestion.question))
@@ -642,12 +662,13 @@ def publish_tournament(tournament_id: UUID, _: ArenaUser = Depends(get_current_a
         if not exists:
             db.add(TournamentInvitation(user_id=user.id, tournament_id=tournament.id, status="created"))
             created += 1
+    log_admin_action(db, admin, "publish_tournament", "tournament", tournament.id, f"Опубликован турнир {tournament.title}; приглашений: {created}")
     db.commit()
     return {"ok": True, "status": tournament.status.value, "invitations_created": created}
 
 
 @router.post("/tournaments/{tournament_id}/cancel")
-def cancel_tournament(tournament_id: UUID, _: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
+def cancel_tournament(tournament_id: UUID, admin: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
     tournament = db.get(Tournament, tournament_id)
     if not tournament:
         raise HTTPException(status_code=404, detail="Tournament not found")
@@ -658,6 +679,7 @@ def cancel_tournament(tournament_id: UUID, _: ArenaUser = Depends(get_current_ad
         TournamentInvitation.tournament_id == tournament.id,
         TournamentInvitation.status.in_(["created", "seen"]),
     ).update({"status": "expired"}, synchronize_session=False)
+    log_admin_action(db, admin, "cancel_tournament", "tournament", tournament.id, f"Отменён турнир {tournament.title}")
     db.commit()
     return {"ok": True, "status": tournament.status.value}
 
@@ -685,7 +707,7 @@ def tournament_invitations(tournament_id: UUID, _: ArenaUser = Depends(get_curre
 
 
 @router.post("/tournaments/{tournament_id}/invite")
-def invite_user(tournament_id: UUID, payload: InviteUserIn, _: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
+def invite_user(tournament_id: UUID, payload: InviteUserIn, admin: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
     tournament = db.get(Tournament, tournament_id)
     if not tournament:
         raise HTTPException(status_code=404, detail="Tournament not found")
@@ -705,6 +727,7 @@ def invite_user(tournament_id: UUID, payload: InviteUserIn, _: ArenaUser = Depen
     else:
         invitation = TournamentInvitation(user_id=user.id, tournament_id=tournament.id, status="created")
         db.add(invitation)
+    log_admin_action(db, admin, "invite_user", "tournament", tournament.id, f"Пользователь {user.display_name} приглашён в {tournament.title}")
     db.commit()
     return {"ok": True, "status": invitation.status}
 
@@ -751,7 +774,7 @@ def attempt_detail(tournament_id: UUID, user_id: UUID, _: ArenaUser = Depends(ge
 
 
 @router.post("/tournaments/{tournament_id}/finish")
-def finish_tournament(tournament_id: UUID, _: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
+def finish_tournament(tournament_id: UUID, admin: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
     from app.api.routes.tournaments import _finalize_attempts
 
     tournament = (
@@ -764,6 +787,7 @@ def finish_tournament(tournament_id: UUID, _: ArenaUser = Depends(get_current_ad
         raise HTTPException(status_code=404, detail="Tournament not found")
     tournament.status = TournamentStatus.finished
     _finalize_attempts(db, tournament)
+    log_admin_action(db, admin, "finish_tournament", "tournament", tournament.id, f"Завершён турнир {tournament.title}")
     db.commit()
     return {"ok": True, "status": tournament.status.value}
 
@@ -793,6 +817,30 @@ def tournament_results(tournament_id: UUID, _: ArenaUser = Depends(get_current_a
             }
         )
     return rows
+
+
+@router.get("/audit-log")
+def audit_log(_: ArenaUser = Depends(get_current_admin), db: Session = Depends(get_db)):
+    rows = (
+        db.query(AdminActionLog, ArenaUser)
+        .join(ArenaUser, ArenaUser.id == AdminActionLog.admin_id)
+        .order_by(AdminActionLog.created_at.desc())
+        .limit(200)
+        .all()
+    )
+    return [
+        {
+            "id": entry.id,
+            "admin_id": admin.id,
+            "admin_name": admin.display_name,
+            "action": entry.action,
+            "target_type": entry.target_type,
+            "target_id": entry.target_id,
+            "description": entry.description,
+            "created_at": entry.created_at,
+        }
+        for entry, admin in rows
+    ]
 
 
 DANGEROUS_CSV_PREFIXES = ("=", "+", "-", "@", "\t", "\r", "\n")

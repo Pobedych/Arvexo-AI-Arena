@@ -7,26 +7,38 @@ from sqlalchemy.orm import Session, selectinload
 from app.api.deps import get_current_user
 from app.db.session import get_db
 from app.models.entities import ArenaUser, ContentStatus, Lesson, LessonProgress, LessonStatus, Question, Section, Track, now_utc
-from app.schemas.api import AnswerIn, LessonOut, LessonProgressUpdate, LessonSubmitIn, QuestionOut, TrackOut
+from app.schemas.api import AnswerIn, LessonOut, LessonProgressUpdate, LessonSubmitIn, QuestionOut, TrackOut, TrackSummaryOut
 from app.services.gamification import activity_history, record_activity, sync_xp, weekly_activity
 from app.services.grading import grade_question
 
 router = APIRouter(tags=["learning"])
 
 
-def _ai_track(db: Session) -> Track:
+def _track_by_slug(db: Session, slug: str) -> Track:
     track = (
         db.query(Track)
         .options(
             selectinload(Track.sections).selectinload(Section.lessons).selectinload(Lesson.questions),
             selectinload(Track.sections).selectinload(Section.lessons).selectinload(Lesson.steps),
         )
-        .filter(Track.slug == "ai", Track.status == ContentStatus.published)
+        .filter(Track.slug == slug, Track.status == ContentStatus.published)
         .one_or_none()
     )
     if not track:
-        raise HTTPException(status_code=404, detail="AI Track is not available")
+        raise HTTPException(status_code=404, detail="Track is not available")
     return track
+
+
+def _ai_track(db: Session) -> Track:
+    return _track_by_slug(db, "ai")
+
+
+def _selected_track(db: Session, user: ArenaUser) -> Track:
+    if user.selected_track_id:
+        selected = db.get(Track, user.selected_track_id)
+        if selected and selected.status == ContentStatus.published:
+            return _track_by_slug(db, selected.slug)
+    return _ai_track(db)
 
 
 def _progress_map(db: Session, user: ArenaUser) -> dict[str, LessonProgress]:
@@ -50,7 +62,12 @@ def _is_unlocked(lessons: list[Lesson], progress: dict[str, LessonProgress], les
 
 
 def _accessible_lesson(db: Session, user: ArenaUser, lesson_id: UUID) -> tuple[Lesson, dict[str, LessonProgress]]:
-    track = _ai_track(db)
+    lesson_row = db.get(Lesson, lesson_id)
+    section = db.get(Section, lesson_row.section_id) if lesson_row else None
+    track_row = db.get(Track, section.track_id) if section else None
+    if not track_row:
+        raise HTTPException(status_code=404, detail="Lesson not found")
+    track = _track_by_slug(db, track_row.slug)
     lessons = _ordered_lessons(track)
     progress = _progress_map(db, user)
     lesson = next((item for item in lessons if item.id == lesson_id), None)
@@ -61,19 +78,8 @@ def _accessible_lesson(db: Session, user: ArenaUser, lesson_id: UUID) -> tuple[L
     return lesson, progress
 
 
-@router.post("/tracks/ai/select", response_model=TrackOut)
-def select_ai_track(db: Session = Depends(get_db), current_user: ArenaUser = Depends(get_current_user)):
-    track = _ai_track(db)
-    current_user.selected_track_id = track.id
-    db.commit()
-    db.refresh(current_user)
-    return get_ai_track(db, current_user)
-
-
-@router.get("/tracks/ai", response_model=TrackOut)
-def get_ai_track(db: Session = Depends(get_db), current_user: ArenaUser = Depends(get_current_user)):
-    track = _ai_track(db)
-    progress = _progress_map(db, current_user)
+def _track_payload(db: Session, user: ArenaUser, track: Track) -> dict:
+    progress = _progress_map(db, user)
     lessons = _ordered_lessons(track)
     completed = sum(1 for lesson in lessons if progress.get(str(lesson.id)) and progress[str(lesson.id)].status == LessonStatus.completed)
     current = next((lesson for lesson in lessons if _is_unlocked(lessons, progress, lesson) and not (progress.get(str(lesson.id)) and progress[str(lesson.id)].status == LessonStatus.completed)), None)
@@ -114,12 +120,64 @@ def get_ai_track(db: Session = Depends(get_db), current_user: ArenaUser = Depend
     }
 
 
+@router.post("/tracks/ai/select", response_model=TrackOut)
+def select_ai_track(db: Session = Depends(get_db), current_user: ArenaUser = Depends(get_current_user)):
+    track = _ai_track(db)
+    current_user.selected_track_id = track.id
+    db.commit()
+    db.refresh(current_user)
+    return _track_payload(db, current_user, track)
+
+
+@router.get("/tracks/ai", response_model=TrackOut)
+def get_ai_track(db: Session = Depends(get_db), current_user: ArenaUser = Depends(get_current_user)):
+    return _track_payload(db, current_user, _ai_track(db))
+
+
+@router.get("/tracks", response_model=list[TrackSummaryOut])
+def list_published_tracks(db: Session = Depends(get_db), current_user: ArenaUser = Depends(get_current_user)):
+    rows = db.query(Track).filter(Track.status == ContentStatus.published).order_by(Track.title).all()
+    return [
+        {
+            "id": track.id,
+            "slug": track.slug,
+            "title": track.title,
+            "description": track.description,
+            "selected": current_user.selected_track_id == track.id,
+        }
+        for track in rows
+    ]
+
+
+@router.get("/tracks/current", response_model=TrackOut)
+def get_current_track(db: Session = Depends(get_db), current_user: ArenaUser = Depends(get_current_user)):
+    return _track_payload(db, current_user, _selected_track(db, current_user))
+
+
+@router.post("/tracks/{slug}/select", response_model=TrackOut)
+def select_track(slug: str, db: Session = Depends(get_db), current_user: ArenaUser = Depends(get_current_user)):
+    track = _track_by_slug(db, slug)
+    current_user.selected_track_id = track.id
+    db.commit()
+    db.refresh(current_user)
+    return _track_payload(db, current_user, track)
+
+
+@router.get("/tracks/{slug}", response_model=TrackOut)
+def get_track(slug: str, db: Session = Depends(get_db), current_user: ArenaUser = Depends(get_current_user)):
+    return _track_payload(db, current_user, _track_by_slug(db, slug))
+
+
 @router.get("/lessons/{lesson_id}", response_model=LessonOut)
 def get_lesson(lesson_id: UUID, db: Session = Depends(get_db), current_user: ArenaUser = Depends(get_current_user)):
     lesson, progress = _accessible_lesson(db, current_user, lesson_id)
     progress_row = progress.get(str(lesson.id))
+    section = db.get(Section, lesson.section_id)
+    track = db.get(Track, section.track_id) if section else None
     return {
         "id": lesson.id,
+        "track_slug": track.slug if track else "ai",
+        "track_title": track.title if track else "AI Track",
         "title": lesson.title,
         "summary": lesson.summary,
         "theory": lesson.theory,
@@ -194,6 +252,22 @@ def submit_lesson(lesson_id: UUID, payload: LessonSubmitIn, db: Session = Depend
     return {"score": score, "max_score": max_score, "percent": percent, "completed": progress.status == LessonStatus.completed, "results": results}
 
 
+@router.post("/lessons/{lesson_id}/questions/{question_id}/check")
+def check_lesson_question(
+    lesson_id: UUID,
+    question_id: UUID,
+    payload: AnswerIn,
+    db: Session = Depends(get_db),
+    current_user: ArenaUser = Depends(get_current_user),
+):
+    lesson, _ = _accessible_lesson(db, current_user, lesson_id)
+    question = next((item for item in lesson.questions if item.id == question_id and item.status == ContentStatus.published), None)
+    if not question:
+        raise HTTPException(status_code=404, detail="Question not found")
+    is_correct, points = grade_question(question, payload.answer)
+    return {"is_correct": is_correct, "points": points, "max_points": question.points, "explanation": question.explanation}
+
+
 @router.get("/activity/week")
 def get_weekly_activity(db: Session = Depends(get_db), current_user: ArenaUser = Depends(get_current_user)):
     return weekly_activity(db, current_user)
@@ -206,7 +280,7 @@ def get_yearly_activity(db: Session = Depends(get_db), current_user: ArenaUser =
 
 @router.get("/practice/questions", response_model=list[QuestionOut])
 def practice_questions(limit: int = 3, db: Session = Depends(get_db), current_user: ArenaUser = Depends(get_current_user)):
-    track = _ai_track(db)
+    track = _selected_track(db, current_user)
     lesson_ids = [lesson.id for section in track.sections for lesson in section.lessons if lesson.status == ContentStatus.published]
     questions = (
         db.query(Question)

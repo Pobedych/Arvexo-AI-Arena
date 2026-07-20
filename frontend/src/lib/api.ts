@@ -44,6 +44,14 @@ export type Track = {
   sections: TrackSection[];
 };
 
+export type TrackSummary = {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  selected: boolean;
+};
+
 export type ActivityDay = {
   date: string;
   count: number;
@@ -71,6 +79,8 @@ export type LessonStep = {
 
 export type Lesson = {
   id: string;
+  track_slug: string;
+  track_title: string;
   title: string;
   summary: string;
   theory: string;

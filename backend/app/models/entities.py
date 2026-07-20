@@ -209,6 +209,18 @@ class ActivityLog(TimestampMixin, Base):
     action_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
 
+class AdminActionLog(Base):
+    __tablename__ = "admin_action_logs"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    admin_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("arena_users.id"), index=True, nullable=False)
+    action: Mapped[str] = mapped_column(String(60), nullable=False)
+    target_type: Mapped[str] = mapped_column(String(60), nullable=False)
+    target_id: Mapped[str | None] = mapped_column(String(80))
+    description: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True, default=now_utc, nullable=False)
+
+
 class Tournament(TimestampMixin, Base):
     __tablename__ = "tournaments"
 
