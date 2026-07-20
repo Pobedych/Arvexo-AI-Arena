@@ -5,10 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="HTML-прототип обзора Arvexo Arena" />
     <title>Обзор | Arvexo Arena</title>
-    <link rel="stylesheet" href="styles.css" />
-    <script src="app.js" defer></script>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles.css?v=live-dashboard-1" />
+    <script src="app.js?v=openai-5" defer></script>
   </head>
-  <body>
+  <body class="dashboard-page live-dashboard">
     <a class="skip-link" href="#main">К содержанию</a>
     <div class="app-shell">
       <header class="app-header">
@@ -18,96 +19,95 @@
             <span>Arvexo Arena</span>
           </a>
           <div class="user-tools">
-            <span class="streak">4 дня подряд</span>
-            <span class="streak">Уровень 1</span>
-            <button class="icon-button theme-toggle" type="button" data-theme-toggle aria-label="Переключить тему">◐</button>
+            <span class="streak live-streak"><span aria-hidden="true">↗</span> 1 день</span>
+            <span class="streak live-level"><span aria-hidden="true">★</span> Уровень 1</span>
             <a class="user-chip" href="#profile">
-              <span class="avatar" aria-hidden="true">A</span>
-              <span>Alexey</span>
+              <span class="avatar" aria-hidden="true">ИЛ</span>
+              <span>Иван Лебедев</span>
             </a>
           </div>
         </div>
       </header>
 
-      <main class="container app-main" id="main">
-        <div class="page-intro" data-reveal>
-          <div>
-            <p class="mono-label">Твоя арена</p>
-            <h1>С возвращением, Alexey</h1>
+      <main class="live-dashboard-main" id="main">
+        <div class="live-dashboard-inner">
+          <div class="live-page-intro" data-reveal>
+            <p class="live-kicker">Твоя арена</p>
+            <h1>С возвращением, Иван Лебедев</h1>
           </div>
-          <p>Продолжи подготовку или открой ближайший турнир. Всё важное собрано на одном экране.</p>
-        </div>
 
-        <section class="mission-grid" aria-label="Следующий шаг" data-reveal>
-          <article class="mission-card">
-            <div class="mission-copy">
-              <p class="mono-label">Продолжить</p>
-              <h2>Урок 7: Подготовка данных и чистая таблица</h2>
-              <p>Разбери пропуски, дубликаты и ошибки, которые мешают модели учиться на данных.</p>
-              <a class="button" href="track.html">Продолжить урок</a>
-            </div>
-            <div class="mission-rail">
-              <strong>6/14</strong>
+          <section class="live-primary-grid" aria-label="Следующий шаг" data-reveal>
+            <article class="live-card live-lesson-card">
+              <p class="live-kicker">Продолжить</p>
+              <h2>Урок 3 — Объекты, признаки и целевая переменная</h2>
+              <p class="live-card-copy">Разберём, из чего состоит датасет: что считается объектом, какие столбцы являются признаками и что именно модель должна предсказывать.</p>
+              <div class="live-lesson-actions">
+                <a class="live-button" href="track.html">Продолжить</a>
+                <span>14% трека готово · 2/14 уроков</span>
+              </div>
+            </article>
+
+            <aside class="live-card live-readiness-card">
+              <p class="live-kicker">Готовность к турниру</p>
+              <strong>14%</strong>
+              <div class="live-progress" role="img" aria-label="Готовность к турниру 14 процентов"><span></span></div>
+              <p>Продолжай уроки, чтобы увереннее выйти на арену.</p>
+            </aside>
+          </section>
+
+          <section class="live-summary-grid" aria-label="Ключевые показатели" data-reveal>
+            <a class="live-card live-summary-card" href="track.html">
+              <p class="live-kicker">AI Track</p>
+              <strong>2/14</strong>
               <span>уроков завершено</span>
-            </div>
-          </article>
+            </a>
 
-          <aside class="readiness-card">
-            <p class="mono-label">Готовность к турниру</p>
-            <div class="readiness-ring" role="img" aria-label="Готовность к турниру 43 процента">
-              <strong>43%</strong>
-            </div>
-            <p class="soft">Ещё два урока заметно усилят базу перед первой попыткой.</p>
-          </aside>
-        </section>
+            <article class="live-card live-tournament-card">
+              <p>18 июля 2026 г. в 13:00 · 60 мин</p>
+              <h3>Cosmo star</h3>
+              <a class="live-button" href="tournament.html">Открыть арену</a>
+            </article>
 
-        <section class="dashboard-strip" aria-label="Ключевые показатели" data-reveal>
-          <div class="metric">
-            <p class="mono-label">AI Track</p>
-            <strong>6/14</strong>
-            <span>уроков завершено</span>
-          </div>
-          <div class="metric">
-            <p class="mono-label">Ближайший турнир</p>
-            <strong>AI Basics</strong>
-            <span>9 июля, 16:42</span>
-          </div>
-          <div class="metric" id="profile">
-            <p class="mono-label">Профиль</p>
-            <strong>Alexey</strong>
-            <span>alexeydoborin@gmail.com</span>
-          </div>
-        </section>
+            <a class="live-card live-profile-card" id="profile" href="#profile">
+              <p class="live-kicker">Профиль</p>
+              <strong>ivan.lebedev.260712@example.com</strong>
+              <span>Участник</span>
+            </a>
+          </section>
 
-        <section class="dashboard-lower" data-reveal>
-          <article class="panel" aria-labelledby="activity-title">
-            <h2 id="activity-title">Активность за неделю</h2>
-            <div class="activity-bars" aria-label="17 XP за последние семь дней">
-              <div class="activity-day"><span class="activity-bar" style="height: 38%"></span><span>Чт</span></div>
-              <div class="activity-day"><span class="activity-bar" style="height: 6%"></span><span>Пт</span></div>
-              <div class="activity-day"><span class="activity-bar" style="height: 6%"></span><span>Сб</span></div>
-              <div class="activity-day"><span class="activity-bar" style="height: 31%"></span><span>Вс</span></div>
-              <div class="activity-day"><span class="activity-bar" style="height: 68%"></span><span>Пн</span></div>
-              <div class="activity-day"><span class="activity-bar" style="height: 6%"></span><span>Вт</span></div>
-              <div class="activity-day"><span class="activity-bar" style="height: 6%"></span><span>Ср</span></div>
-            </div>
-          </article>
-
-          <aside class="panel" aria-labelledby="upcoming-title">
-            <h2 id="upcoming-title">Ближайшее</h2>
-            <div class="upcoming-list">
-              <div class="upcoming-item">
-                <strong>Подготовка данных и чистая таблица</strong>
-                <span>Доступно сейчас</span>
+          <section class="live-lower-grid" data-reveal>
+            <article class="live-card live-activity-card" aria-labelledby="activity-title">
+              <div class="live-panel-heading">
+                <h2 id="activity-title">Активность за неделю</h2>
+                <strong>+9 XP</strong>
               </div>
-              <div class="upcoming-item">
-                <strong>AI Basics Tournament</strong>
-                <span>9 июля, 16:42</span>
+              <div class="live-activity-bars" aria-label="9 XP за последние семь дней">
+                <div class="live-activity-day"><span class="live-activity-value">+9 XP</span><span class="live-activity-bar is-active"></span><span>Вс</span></div>
+                <div class="live-activity-day"><span class="live-activity-value">0 XP</span><span class="live-activity-bar"></span><span>Пн</span></div>
+                <div class="live-activity-day"><span class="live-activity-value">0 XP</span><span class="live-activity-bar"></span><span>Вт</span></div>
+                <div class="live-activity-day"><span class="live-activity-value">0 XP</span><span class="live-activity-bar"></span><span>Ср</span></div>
+                <div class="live-activity-day"><span class="live-activity-value">0 XP</span><span class="live-activity-bar"></span><span>Чт</span></div>
+                <div class="live-activity-day"><span class="live-activity-value">0 XP</span><span class="live-activity-bar"></span><span>Пт</span></div>
+                <div class="live-activity-day"><span class="live-activity-value">0 XP</span><span class="live-activity-bar"></span><span>Сб</span></div>
               </div>
-            </div>
-            <a class="button secondary small" href="tournament.html">Открыть арену</a>
-          </aside>
-        </section>
+              <p class="live-panel-note">За последние семь дней ты получил 9 XP.</p>
+            </article>
+
+            <aside class="live-card live-upcoming-card" aria-labelledby="upcoming-title">
+              <h2 id="upcoming-title">Ближайшее</h2>
+              <div class="live-upcoming-list">
+                <a href="track.html">
+                  <span class="live-upcoming-icon" aria-hidden="true">↗</span>
+                  <span><strong>Урок 3 — Объекты, признаки и целевая переменная</strong><small>Доступен сейчас</small></span>
+                </a>
+                <a href="tournament.html">
+                  <span class="live-upcoming-icon" aria-hidden="true">◆</span>
+                  <span><strong>Cosmo star</strong><small>18 июля 2026 г. в 13:00</small></span>
+                </a>
+              </div>
+            </aside>
+          </section>
+        </div>
       </main>
 
       <nav class="app-dock" aria-label="Разделы приложения">

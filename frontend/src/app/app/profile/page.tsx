@@ -74,7 +74,7 @@ export default function Profile() {
         </div>
         <div className="text-right rounded-[18px] bg-[#15171c] py-3.5 px-5.5">
           <p className="text-white/50 text-[10px] font-bold tracking-[.1em] uppercase mb-1">AI Track</p>
-          <strong className="font-[family-name:var(--font-display)] text-[30px] text-[#ffb100] block leading-none">{track.progress_percent}%</strong>
+          <strong className="font-[family-name:var(--font-display)] text-[30px] text-[#74bd70] block leading-none">{track.progress_percent}%</strong>
           <span className="text-[11px] text-[#16a34a] font-bold">{track.completed_lessons}/{track.total_lessons} уроков</span>
         </div>
       </div>

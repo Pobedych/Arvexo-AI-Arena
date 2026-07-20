@@ -191,7 +191,7 @@ function TournamentView() {
           </div>
         </div>
         <div className="rounded-[26px] bg-[#15171c] text-white p-6.5 shadow-[0_16px_40px_-32px_rgba(21,23,28,.35)]">
-          <div className="w-16 h-16 rounded-[18px] bg-[#ffb100] text-[#15171c] grid place-items-center mb-4">
+          <div className="w-16 h-16 rounded-[18px] bg-[#74bd70] text-[#15171c] grid place-items-center mb-4">
             <strong className="text-[22px] font-extrabold leading-none">{primary.question_count || "—"}</strong>
           </div>
           <p className="text-[11.5px] text-white/50 mb-1">Окно турнира</p>

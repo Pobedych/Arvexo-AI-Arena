@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   api,
   groupSortInitialValue,
@@ -116,13 +116,15 @@ export default function LessonPage() {
   const [loading, setLoading] = useState(true);
   const [currentBlock, setCurrentBlock] = useState(0);
   const [furthestBlock, setFurthestBlock] = useState(0);
+  const progressSaveQueue = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
     api<Lesson>(`/lessons/${params.lessonId}`)
       .then((lessonData) => {
+        const savedBlock = Math.max(0, Math.min(lessonData.current_block ?? 0, buildBlocks(lessonData).length));
         setLesson(lessonData);
-        setCurrentBlock(0);
-        setFurthestBlock(0);
+        setCurrentBlock(savedBlock);
+        setFurthestBlock(savedBlock);
         setResult(null);
         setAnswers(Object.fromEntries(
           lessonData.questions
@@ -147,10 +149,23 @@ export default function LessonPage() {
   const blocks = useMemo(() => (lesson ? buildBlocks(lesson) : []), [lesson]);
   const canSubmit = useMemo(() => lesson?.questions.every((question) => hasAnswer(question, answers[question.id])) ?? false, [lesson, answers]);
 
+  function saveProgress(lessonId: string, blockIndex: number) {
+    progressSaveQueue.current = progressSaveQueue.current
+      .catch(() => undefined)
+      .then(() => api<{ current_block: number }>(`/lessons/${lessonId}/progress`, {
+        method: "PUT",
+        body: JSON.stringify({ current_block: blockIndex }),
+        keepalive: true,
+      }))
+      .then(() => undefined)
+      .catch(() => undefined);
+  }
+
   function goToBlock(index: number) {
     const next = Math.max(0, Math.min(index, blocks.length));
     setCurrentBlock(next);
     setFurthestBlock((furthest) => Math.max(furthest, next));
+    if (lesson) saveProgress(lesson.id, next);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -244,7 +259,7 @@ export default function LessonPage() {
                     onClick={() => goToBlock(index)}
                     className={`flex w-full items-center gap-2.5 rounded-[12px] px-2.5 py-2 text-left text-[11.5px] font-bold transition-colors disabled:opacity-45 ${active ? "bg-[#15171c] text-white" : "hover:bg-[#f6f4ee]"}`}
                   >
-                    <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-[10px] ${active ? "bg-[#ffb100] text-[#15171c]" : complete ? "bg-[#16a34a] text-white" : "bg-[#f0eee7] text-[#858990]"}`}>
+                    <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-[10px] ${active ? "bg-[#74bd70] text-[#15171c]" : complete ? "bg-[#16a34a] text-white" : "bg-[#f0eee7] text-[#858990]"}`}>
                       {complete ? "✓" : index + 1}
                     </span>
                     <span className="line-clamp-2">{label}</span>

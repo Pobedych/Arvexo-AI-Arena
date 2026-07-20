@@ -76,8 +76,13 @@ class LessonOut(BaseModel):
     theory: str
     order: int
     status: str
+    current_block: int = 0
     steps: list[LessonStepOut] = []
     questions: list[QuestionOut]
+
+
+class LessonProgressUpdate(BaseModel):
+    current_block: int = Field(ge=0, le=1000)
 
 
 class SectionOut(BaseModel):

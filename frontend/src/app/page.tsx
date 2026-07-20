@@ -2,40 +2,72 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { type CSSProperties, FormEvent, useEffect, useState } from "react";
 
-const competitors = [
-  { name: "Stepik", gap: "Курсы без турнира — некому показать результат" },
-  { name: "Kaggle", gap: "Для специалистов — нет пути для новичка" },
-  { name: "Duolingo", gap: "Стрики и лиги — но не про профессиональный навык" },
-  { name: "YouTube", gap: "Смотришь — но никто не проверит, что ты понял" },
-];
+import { ArvexoLogo } from "@/components/ArvexoLogo";
+import { LandingMotionLayer } from "@/components/LandingMotion";
 
-const stats = [
-  { value: "1,204", label: "учатся сейчас" },
-  { value: "42", label: "турнира в месяц" },
-  { value: "12", label: "уроков в AI Track" },
-  { value: "100%", label: "автопроверка" },
-];
+type GoalRecommendation = {
+  title: string;
+  copy: string;
+  label: string;
+  href: string;
+};
 
-const benefits = [
+const recommendations: Record<"track" | "practice" | "tournament", GoalRecommendation> = {
+  track: {
+    title: "Начни с AI Track",
+    copy: "Короткий маршрут поможет собрать базу и перейти к практике.",
+    label: "Открыть AI Track",
+    href: "/tracks/ai",
+  },
+  practice: {
+    title: "Сначала собери профиль участника",
+    copy: "После регистрации Arena откроет практику и сохранит твой результат.",
+    label: "Начать бесплатно",
+    href: "/onboarding",
+  },
+  tournament: {
+    title: "Выбери ближайший турнир",
+    copy: "Посмотри формат, темы и время старта, затем оцени готовность.",
+    label: "Смотреть турниры",
+    href: "/tournaments",
+  },
+};
+
+const modes = [
   {
-    title: "Настоящий статус",
-    text: "Место в рейтинге и сертификат турнира — то, что можно показать вузу или работодателю.",
+    label: "AI Track",
+    title: "Разобраться в теме",
+    copy: "Короткие уроки, примеры и задания по машинному обучению.",
+    href: "/tracks/ai",
   },
   {
-    title: "10–20 минут в день",
-    text: "Уроки короче серии в игре, но продвигают тебя к цели, а не просто убивают время.",
+    label: "Практика",
+    title: "Проверить себя",
+    copy: "Быстрые вопросы покажут, что повторить перед стартом.",
+    href: "/onboarding",
   },
   {
-    title: "Видно, что ты умеешь",
-    text: "Работодатели видят разбор твоих турнирных ответов, а не строчку самооценки в резюме.",
+    label: "Турниры",
+    title: "Выступить на арене",
+    copy: "Решай задачи на время и сохраняй результат в профиле.",
+    href: "/tournaments",
   },
 ];
+
+function recommendationFor(value: string) {
+  const normalized = value.toLowerCase();
+  if (normalized.includes("турнир") || normalized.includes("соревн")) return recommendations.tournament;
+  if (normalized.includes("провер") || normalized.includes("задач") || normalized.includes("практи")) return recommendations.practice;
+  return recommendations.track;
+}
 
 export default function Landing() {
   const router = useRouter();
   const [checkingSession, setCheckingSession] = useState(true);
+  const [goal, setGoal] = useState("");
+  const [recommendation, setRecommendation] = useState<GoalRecommendation | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -56,174 +88,230 @@ export default function Landing() {
     };
   }, [router]);
 
+  const submitGoal = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const value = goal.trim();
+    if (!value) return;
+    setRecommendation(recommendationFor(value));
+  };
+
+  const selectGoal = (value: string) => {
+    setGoal(value);
+    setRecommendation(recommendationFor(value));
+  };
+
   if (checkingSession) {
-    return <div className="min-h-screen bg-white" />;
+    return <div className="min-h-dvh bg-[#f6f4ee]" />;
   }
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* nav */}
-      <div className="sticky top-4 z-40 flex justify-center px-4 sm:px-6 pt-2.5">
-        <div className="flex items-center gap-1.5 w-full max-w-[680px] py-2 pl-3.5 sm:pl-4.5 pr-2 rounded-full bg-[#15171c] shadow-[0_18px_44px_-22px_rgba(21,23,28,.55)]">
-          <Link href="/" className="flex items-center gap-2 sm:gap-2.5 mr-auto shrink-0">
-            <span className="w-[26px] h-[26px] rounded-[7px] bg-[#16a34a] grid place-items-center text-white font-extrabold text-xs font-[family-name:var(--font-display)]">
-              A
-            </span>
-            <strong className="text-[13px] sm:text-[13.5px] tracking-tight text-white whitespace-nowrap">Arvexo Arena</strong>
+    <div className="landing-page min-h-dvh bg-[#f6f4ee] text-[#15171c]">
+      <LandingMotionLayer />
+      <a
+        href="#main"
+        className="fixed left-4 top-3 z-50 -translate-y-20 rounded-full bg-[#15171c] px-4 py-2 text-xs text-white focus:translate-y-0"
+      >
+        К содержанию
+      </a>
+
+      <header className="landing-header sticky top-0 z-40 border-b border-[rgba(21,23,28,.08)] bg-white/94 backdrop-blur-md">
+        <div className="mx-auto flex min-h-[68px] w-[min(1180px,calc(100%-32px))] items-center gap-6">
+          <Link href="/" aria-label="Arvexo Arena, главная" className="landing-brand mr-auto flex shrink-0 items-center gap-2.5">
+            <ArvexoLogo markClassName="landing-brand-mark" />
           </Link>
-          <Link href="/tracks/ai" className="hidden md:inline text-[12.5px] text-white/60 font-medium py-2 px-3 rounded-full hover:text-white hover:bg-white/10 transition-colors">
-            AI Track
-          </Link>
-          <Link href="/tournaments" className="hidden md:inline text-[12.5px] text-white/60 font-medium py-2 px-3 rounded-full hover:text-white hover:bg-white/10 transition-colors">
-            Турниры
-          </Link>
-          <Link href="/employers" className="hidden md:inline text-[12.5px] text-white/60 font-medium py-2 px-3 rounded-full hover:text-white hover:bg-white/10 transition-colors">
-            Работодателям
-          </Link>
+
+          <nav aria-label="Основная навигация" className="hidden items-center gap-1 md:flex">
+            <Link href="/tracks/ai" className="landing-nav-link rounded-full px-3 py-2 text-[12.5px] font-medium text-[#5f636b] transition-colors hover:bg-[#f1f1ef] hover:text-[#15171c]">
+              AI Track
+            </Link>
+            <Link href="/tournaments" className="landing-nav-link rounded-full px-3 py-2 text-[12.5px] font-medium text-[#5f636b] transition-colors hover:bg-[#f1f1ef] hover:text-[#15171c]">
+              Турниры
+            </Link>
+            <Link href="/employers" className="landing-nav-link rounded-full px-3 py-2 text-[12.5px] font-medium text-[#5f636b] transition-colors hover:bg-[#f1f1ef] hover:text-[#15171c]">
+              Работодателям
+            </Link>
+          </nav>
+
           <Link
             href="/login"
-            className="inline-flex items-center h-9 px-3.5 sm:px-4.5 rounded-full bg-[#16a34a] text-white font-bold text-[12.5px] whitespace-nowrap hover:opacity-88 transition-opacity shrink-0"
+            className="inline-flex h-10 shrink-0 items-center rounded-full bg-[#15171c] px-5 text-[12.5px] font-medium text-white transition-transform hover:-translate-y-px focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#15171c] active:scale-[.98]"
           >
             Войти
           </Link>
         </div>
-      </div>
+      </header>
 
-      {/* hero */}
-      <div className="w-[min(760px,calc(100%-48px))] mx-auto pt-18 text-center">
-        <h1 className="font-[family-name:var(--font-display)] text-[clamp(38px,5.2vw,64px)] font-semibold tracking-[-.03em] leading-[1.06] mb-5 text-[#15171c]">
-          Учись. Соревнуйся. Докажи, что умеешь.
-        </h1>
-        <p className="max-w-[520px] mx-auto mb-9 text-[17px] leading-relaxed text-[#6b6f76]">
-          Stepik учит, Kaggle — для профи, Duolingo — про язык. У Arvexo Arena после урока есть турнир, а результат видят вуз и работодатель.
-        </p>
-        <div className="flex gap-3 justify-center flex-wrap mb-11">
-          <Link
-            href="/onboarding"
-            className="inline-flex items-center h-12 px-6.5 rounded-[10px] bg-[#16a34a] text-white font-bold text-[14.5px] hover:opacity-90 transition-opacity"
-          >
-            Начать бесплатно
-          </Link>
-          <Link
-            href="/tournaments"
-            className="inline-flex items-center h-12 px-6 rounded-[10px] border border-[rgba(21,23,28,.16)] text-[#15171c] font-semibold text-[14.5px] hover:bg-[#f6f4ee] transition-colors"
-          >
-            Смотреть турниры
-          </Link>
-        </div>
-      </div>
-
-      {/* competitor comparison */}
-      <div className="w-[min(980px,calc(100%-48px))] mx-auto pb-18">
-        <div className="grid grid-cols-2 sm:grid-cols-5 border border-[rgba(21,23,28,.1)] rounded-2xl overflow-hidden">
-          {competitors.map((c) => (
-            <div key={c.name} className="p-5 border-r border-b sm:border-b-0 border-[rgba(21,23,28,.1)] last:border-r-0">
-              <p className="text-[12.5px] font-bold mb-1.5 text-[#15171c]">{c.name}</p>
-              <p className="text-[11.5px] text-[#6b6f76] leading-relaxed">{c.gap}</p>
-            </div>
-          ))}
-          <div className="p-5 bg-[#16a34a] col-span-2 sm:col-span-1">
-            <p className="text-[12.5px] font-bold mb-1.5 text-white">Arvexo Arena</p>
-            <p className="text-[11.5px] text-white/85 leading-relaxed">Урок → турнир → результат, который видят другие</p>
+      <main id="main">
+        <section className="mx-auto flex min-h-[calc(100dvh-68px)] w-[min(920px,calc(100%-32px))] flex-col items-center justify-center py-16 sm:py-20">
+          <div className="landing-hero-copy max-w-[880px] text-center" data-landing-reveal>
+            <h1 className="text-balance text-[clamp(46px,7.2vw,104px)] font-medium leading-[.96] tracking-[-.065em]">
+              <span className="landing-hero-word" style={{ "--word-index": 0 } as CSSProperties}>К чему</span>{" "}
+              <span className="landing-hero-word" style={{ "--word-index": 1 } as CSSProperties}>ты хочешь</span>{" "}
+              <span className="landing-hero-word" style={{ "--word-index": 2 } as CSSProperties}>подготовиться?</span>
+            </h1>
+            <p className="mx-auto mt-6 max-w-[610px] text-[clamp(15px,1.5vw,19px)] leading-relaxed text-[#5f636b]">
+              Опиши цель. Arena предложит урок, практику или ближайший турнир.
+            </p>
           </div>
-        </div>
-      </div>
 
-      {/* stat strip */}
-      <div className="border-t border-b border-[rgba(21,23,28,.08)]">
-        <div className="w-[min(1120px,calc(100%-48px))] mx-auto grid grid-cols-2 sm:grid-cols-4">
-          {stats.map((s, i) => (
-            <div
-              key={s.label}
-              className={`py-6.5 px-5 text-center ${i < stats.length - 1 ? "sm:border-r" : ""} border-[rgba(21,23,28,.08)]`}
-            >
-              <strong className="font-[family-name:var(--font-display)] text-[26px] font-semibold block text-[#15171c]">
-                {s.value}
-              </strong>
-              <span className="text-xs text-[#6b6f76]">{s.label}</span>
+          <form onSubmit={submitGoal} className="landing-goal-form mt-11 w-full max-w-[760px] sm:mt-12" data-landing-reveal>
+            <label htmlFor="learning-goal" className="mb-2.5 ml-4 block text-[12.5px] font-medium text-[#5f636b]">
+              Спроси Arena
+            </label>
+            <div className="landing-goal-composer grid grid-cols-[minmax(0,1fr)_44px] items-end gap-3 rounded-[28px] border border-[rgba(21,23,28,.16)] bg-white p-4 pl-5 shadow-[0_18px_48px_-38px_rgba(21,23,28,.35)] transition-colors focus-within:border-[#5ca959]">
+              <textarea
+                id="learning-goal"
+                name="learning_goal"
+                rows={2}
+                value={goal}
+                onChange={(event) => setGoal(event.target.value)}
+                placeholder="Например: хочу понять классификацию и проверить себя"
+                required
+                className="min-h-[54px] max-h-[150px] resize-y bg-transparent text-[15px] leading-relaxed text-[#15171c] outline-none placeholder:text-[#8b8f94]"
+              />
+              <button
+                type="submit"
+                aria-label="Подобрать следующий шаг"
+                className="landing-submit grid h-11 w-11 place-items-center rounded-full bg-[#74bd70] text-lg font-medium text-[#102011] transition-transform hover:-translate-y-px focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3f7e3d] active:scale-[.96]"
+              >
+                →
+              </button>
             </div>
-          ))}
-        </div>
-      </div>
 
-      {/* why not just games */}
-      <div className="w-[min(920px,calc(100%-48px))] mx-auto pt-22 pb-2">
-        <div className="text-center max-w-[560px] mx-auto mb-14">
-          <h2 className="font-[family-name:var(--font-display)] text-[clamp(26px,3.2vw,38px)] font-semibold tracking-[-.02em] leading-tight mb-3.5 text-[#15171c]">
-            Тот же азарт победы. Только на кону — реальный навык
-          </h2>
-          <p className="text-[15px] text-[#6b6f76] leading-relaxed">
-            В играх ты прокачиваешь персонажа. Здесь — свои знания, которые видно в резюме и на собеседовании.
-          </p>
-        </div>
-
-        <div className="grid sm:grid-cols-2 border border-[rgba(21,23,28,.1)] rounded-[14px] overflow-hidden mb-14">
-          <div className="p-8 sm:border-r border-b sm:border-b-0 border-[rgba(21,23,28,.1)]">
-            <p className="text-[11px] font-bold tracking-[.08em] uppercase text-[#a8a49b] mb-4.5">Обычная игра</p>
-            <div className="grid gap-3">
+            <div aria-label="Примеры целей" className="mt-3.5 flex flex-wrap justify-center gap-2">
               {[
-                "Прогресс исчезает, как только удаляешь приложение",
-                "Соревнуешься за виртуальные очки и скины",
-                "Никто не увидит и не оценит твой результат",
-              ].map((t) => (
-                <div key={t} className="flex gap-2.5 items-start">
-                  <span className="text-[#c7c4bb]">–</span>
-                  <span className="text-[13.5px] text-[#6b6f76] leading-relaxed">{t}</span>
-                </div>
+                "Разобраться в машинном обучении",
+                "Проверить знания перед турниром",
+                "Найти ближайший турнир",
+              ].map((value, index) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => selectGoal(value)}
+                  className="landing-goal-suggestion min-h-[38px] rounded-full border border-[rgba(21,23,28,.1)] bg-transparent px-4 text-[12px] text-[#5f636b] transition-colors hover:border-[rgba(21,23,28,.18)] hover:bg-white hover:text-[#15171c] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#5ca959]"
+                >
+                  {index === 0 ? "Разобраться в ML" : index === 1 ? "Проверить себя" : "Выбрать турнир"}
+                </button>
               ))}
             </div>
+
+            {recommendation && (
+              <div key={recommendation.href} aria-live="polite" className="landing-recommendation mt-3.5 grid items-center gap-5 rounded-[22px] border border-[#78b875] bg-[#edf4eb] p-5 text-left sm:grid-cols-[minmax(0,1fr)_auto]">
+                <div>
+                  <span className="text-[11px] font-semibold text-[#377236]">Следующий шаг</span>
+                  <strong className="mt-1 block text-[15px] font-semibold">{recommendation.title}</strong>
+                  <p className="mt-1 text-[12.5px] leading-relaxed text-[#5f636b]">{recommendation.copy}</p>
+                </div>
+                <Link href={recommendation.href} className="inline-flex h-11 items-center justify-center rounded-full bg-[#15171c] px-5 text-[12.5px] font-medium text-white transition-transform hover:-translate-y-px active:scale-[.98]">
+                  {recommendation.label}
+                </Link>
+              </div>
+            )}
+          </form>
+        </section>
+
+        <section className="mx-auto w-[min(1120px,calc(100%-32px))] py-24 sm:py-32" aria-labelledby="actions-title">
+          <h2 id="actions-title" className="max-w-[760px] text-balance text-[clamp(38px,5vw,76px)] font-medium leading-[.98] tracking-[-.055em]" data-landing-reveal>
+            Что можно сделать сейчас
+          </h2>
+          <div className="landing-mode-list mt-12 border-t border-[rgba(21,23,28,.16)]" data-landing-reveal>
+            {modes.map((mode) => (
+              <Link
+                key={mode.label}
+                href={mode.href}
+                className="landing-mode-row group grid min-h-[126px] items-center gap-5 border-b border-[rgba(21,23,28,.1)] py-6 hover:bg-white md:grid-cols-[140px_minmax(220px,.75fr)_minmax(260px,1fr)_28px] md:gap-7"
+              >
+                <span className="text-[12px] text-[#72767d]">{mode.label}</span>
+                <strong className="text-[20px] font-medium tracking-[-.025em]">{mode.title}</strong>
+                <p className="text-[13.5px] leading-relaxed text-[#5f636b]">{mode.copy}</p>
+                <i aria-hidden="true" className="hidden text-[#72767d] not-italic transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-[#4f964c] md:block">
+                  ↗
+                </i>
+              </Link>
+            ))}
           </div>
-          <div className="p-8">
-            <p className="text-[11px] font-bold tracking-[.08em] uppercase text-[#16a34a] mb-4.5">Arvexo Arena</p>
-            <div className="grid gap-3">
+        </section>
+
+        <section className="mx-auto w-[min(1120px,calc(100%-32px))] py-24 sm:py-32" aria-labelledby="tournament-title">
+          <article className="landing-tournament grid min-h-[580px] overflow-hidden rounded-[28px] border border-[rgba(21,23,28,.1)] bg-[#e8f1e5] lg:grid-cols-[minmax(0,1.3fr)_minmax(320px,.7fr)]" data-landing-reveal>
+            <div className="flex min-h-[500px] flex-col items-start p-8 sm:p-14 lg:p-[72px]">
+              <span className="text-[12px] font-medium text-[#377236]">Ближайший турнир</span>
+              <h2 id="tournament-title" className="mt-auto max-w-[750px] text-balance text-[clamp(48px,6vw,96px)] font-medium leading-[.92] tracking-[-.07em]">
+                AI Sprint: классификация данных
+              </h2>
+              <p className="mt-6 max-w-[560px] text-[14px] leading-relaxed text-[#5f636b]">
+                Личный зачёт, 60 минут. Подготовься в AI Track и проверь знания перед стартом.
+              </p>
+              <Link href="/tournaments" className="mt-7 inline-flex h-11 items-center rounded-full bg-[#15171c] px-5 text-[12.5px] font-medium text-white transition-transform hover:-translate-y-px active:scale-[.98]">
+                Открыть турнир
+              </Link>
+            </div>
+            <dl className="grid content-end border-t border-[rgba(21,23,28,.1)] bg-white/65 p-8 lg:border-l lg:border-t-0">
               {[
-                "Прогресс сохраняется в профиле и растёт с каждым уроком",
-                "Соревнуешься за реальный рейтинг и место в турнире",
-                "Результаты видят работодатели и приёмные комиссии",
-              ].map((t) => (
-                <div key={t} className="flex gap-2.5 items-start">
-                  <span className="text-[#16a34a] font-bold">✓</span>
-                  <span className="text-[13.5px] text-[#15171c] leading-relaxed">{t}</span>
+                ["Старт", "Воскресенье, 18:00"],
+                ["Формат", "Личный зачёт"],
+                ["Темы", "Данные, модели, метрики"],
+              ].map(([term, value]) => (
+                <div key={term} className="landing-tournament-fact border-b border-[rgba(21,23,28,.1)] py-5 last:border-b-0">
+                  <dt className="text-[11px] text-[#72767d]">{term}</dt>
+                  <dd className="mt-2 text-[14px] font-medium">{value}</dd>
                 </div>
               ))}
+            </dl>
+          </article>
+        </section>
+
+        <section className="mx-auto w-[min(1120px,calc(100%-32px))] py-24 sm:py-32" aria-labelledby="profile-title">
+          <div className="landing-profile-story grid gap-14 border-t border-[rgba(21,23,28,.16)] pt-14 lg:grid-cols-[minmax(0,1fr)_minmax(380px,.8fr)] lg:gap-28" data-landing-reveal>
+            <div>
+              <h2 id="profile-title" className="text-balance text-[clamp(38px,5vw,76px)] font-medium leading-[.98] tracking-[-.055em]">
+                Весь прогресс в одном профиле
+              </h2>
+              <p className="mt-6 max-w-[560px] text-[14px] leading-relaxed text-[#5f636b]">
+                Продолжай с того места, где остановился. Результаты уроков, практики и турниров остаются рядом.
+              </p>
+              <Link href="/login" className="mt-8 inline-flex items-center gap-3 text-[13px] font-medium text-[#377e3a]">
+                Открыть обзор <span aria-hidden="true">↗</span>
+              </Link>
             </div>
+            <ul className="list-none">
+              {[
+                ["Уроки", "Видно, что пройти дальше"],
+                ["Практика", "Понятно, какие темы повторить"],
+                ["Турниры", "Результаты сохраняются в профиле"],
+              ].map(([label, value], index) => (
+                <li key={label} className={`landing-profile-item border-b border-[rgba(21,23,28,.1)] py-6 ${index === 0 ? "pt-0" : ""}`}>
+                  <span className="block text-[11px] text-[#72767d]">{label}</span>
+                  <strong className="mt-2 block text-[14px] font-medium">{value}</strong>
+                </li>
+              ))}
+            </ul>
           </div>
-        </div>
+        </section>
 
-        <div className="grid sm:grid-cols-3 border-t border-[rgba(21,23,28,.1)] mb-14">
-          {benefits.map((b, i) => (
-            <div
-              key={b.title}
-              className={`py-7 ${i === 0 ? "pr-6 sm:border-r" : i === 1 ? "px-6 sm:border-r" : "pl-6 sm:pl-6"} border-[rgba(21,23,28,.1)]`}
-            >
-              <h3 className="text-[14.5px] font-bold mb-2 text-[#15171c]">{b.title}</h3>
-              <p className="text-[12.5px] text-[#6b6f76] leading-relaxed">{b.text}</p>
-            </div>
-          ))}
-        </div>
+        <section className="mx-auto w-[min(1120px,calc(100%-32px))] py-24 sm:py-32" aria-labelledby="employers-title">
+          <div className="landing-employers flex min-h-[500px] flex-col items-start justify-end rounded-[28px] bg-[#15171c] p-8 text-white sm:p-16" data-landing-reveal>
+            <h2 id="employers-title" className="max-w-[850px] text-balance text-[clamp(38px,5vw,76px)] font-medium leading-[.98] tracking-[-.055em]">
+              Результат, который можно показать
+            </h2>
+            <p className="mt-6 max-w-[620px] text-[14px] leading-relaxed text-white/62">
+              Профиль участника собирает пройденные темы и турнирный опыт. Он помогает увидеть не обещания, а выполненную работу.
+            </p>
+            <Link href="/employers" className="mt-7 inline-flex h-11 items-center rounded-full bg-[#74bd70] px-5 text-[12.5px] font-medium text-[#102011] transition-transform hover:-translate-y-px active:scale-[.98]">
+              Работодателям
+            </Link>
+          </div>
+        </section>
+      </main>
 
-        <div className="border-l-2 border-[#15171c] pl-6 py-1 mb-16">
-          <p className="font-[family-name:var(--font-display)] italic text-[clamp(16px,1.8vw,20px)] font-medium leading-relaxed text-[#15171c] mb-3 max-w-[600px]">
-            «Взял игрока в стажировку после того, как увидел его разбор на AI Basics Tournament — это было честнее, чем строчка в резюме»
-          </p>
-          <span className="text-[12.5px] text-[#6b6f76]">— HR, из тех, кто нанимает через Arvexo</span>
-        </div>
-      </div>
-
-      {/* final CTA */}
-      <div className="border-t border-[rgba(21,23,28,.08)]">
-        <div className="w-[min(760px,calc(100%-48px))] mx-auto py-18 text-center">
-          <h2 className="font-[family-name:var(--font-display)] text-[clamp(24px,3vw,32px)] font-semibold tracking-[-.02em] mb-6 text-[#15171c]">
-            Первый урок — сегодня, первый турнир — через неделю
-          </h2>
-          <Link
-            href="/onboarding"
-            className="inline-flex items-center h-12.5 px-7 rounded-[10px] bg-[#16a34a] text-white font-bold text-[15px] hover:opacity-90 transition-opacity"
-          >
-            Зарегистрироваться бесплатно
+      <footer className="mt-10 border-t border-[rgba(21,23,28,.1)]">
+        <div className="mx-auto flex min-h-[140px] w-[min(1180px,calc(100%-32px))] flex-col justify-center gap-3 py-8 text-[12px] text-[#72767d] sm:flex-row sm:items-center sm:justify-between">
+          <Link href="/" className="flex items-center gap-2.5 text-[#15171c]">
+            <ArvexoLogo />
           </Link>
+          <span>AI-обучение и соревнования для школьников</span>
         </div>
-      </div>
+      </footer>
     </div>
   );
 }

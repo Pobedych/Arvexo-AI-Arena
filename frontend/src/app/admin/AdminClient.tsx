@@ -865,7 +865,7 @@ export default function AdminClient() {
       <div className="mx-auto max-w-[1180px]">
         <div className="mb-5 flex items-center justify-between gap-4">
           <Link href="/" className="flex items-center gap-2.5">
-            <span className="grid h-8 w-8 place-items-center rounded-[9px] bg-[#15171c] text-[13px] font-extrabold text-[#ffb100]">A</span>
+            <span className="grid h-8 w-8 place-items-center rounded-[9px] bg-[#15171c] text-[13px] font-extrabold text-[#74bd70]">A</span>
             <strong className="text-[15px]">Arena Admin</strong>
           </Link>
           <Link href="/app/dashboard" className="rounded-full border border-[rgba(21,23,28,.14)] bg-white px-4 py-2 text-[12.5px] font-bold">
@@ -879,7 +879,7 @@ export default function AdminClient() {
               key={tab.id}
               onClick={() => setActive(tab.id)}
               className="rounded-full px-4 py-2 text-[13px] font-bold"
-              style={{ background: active === tab.id ? "#ffb100" : "transparent", color: active === tab.id ? "#15171c" : "rgba(255,255,255,.62)" }}
+              style={{ background: active === tab.id ? "#74bd70" : "transparent", color: active === tab.id ? "#15171c" : "rgba(255,255,255,.62)" }}
             >
               {tab.label}
             </button>

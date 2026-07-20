@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 184 40" role="img" aria-labelledby="title desc">
+  <title id="title">Arvexo — Arena</title>
+  <desc id="desc">Два спокойных контура образуют пространство арены рядом с названием Arvexo.</desc>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="3">
+    <path d="M15.8 6.5H7.5v27h8.3" stroke="#F5F7F2"/>
+    <path d="M24.2 6.5h8.3v27h-8.3" stroke="#F5F7F2"/>
+    <path d="M16 20h8" stroke="#79E34D"/>
+  </g>
+  <text x="47" y="28.2" fill="#F5F7F2" font-family="Inter, Arial, sans-serif" font-size="25" font-weight="500" letter-spacing="-.7">arvexo</text>
+</svg>
