@@ -197,7 +197,7 @@ export default function LessonPage() {
     return (
       <div>
         <p className="text-sm text-[#ff4d3d] mb-3">{error ?? "Урок не найден"}</p>
-        <Link href="/app/track" className="text-[#16a34a] text-sm font-bold">К AI Track</Link>
+        <Link href="/app/track" className="text-[#16a34a] text-sm font-bold">К треку</Link>
       </div>
     );
   }
@@ -206,7 +206,7 @@ export default function LessonPage() {
     <>
       <div className="flex justify-between items-center mb-1.5 flex-wrap gap-3">
         <p className="text-[#6b6f76] text-[11px] font-bold tracking-[.12em] uppercase">
-          AI Track · Урок {lesson.order}
+          {lesson.track_title} · Урок {lesson.order}
         </p>
         <Link href="/app/track" className="text-xs text-[#16a34a] font-bold">
           К треку
@@ -282,6 +282,7 @@ export default function LessonPage() {
                 />
               ) : (
                 <MiniCheckBlock
+                  lessonId={lesson.id}
                   question={block.question}
                   active={blockIndex === currentBlock && !wizardDone}
                   value={answers[block.question.id]}
@@ -342,6 +343,7 @@ function StepBlock({ step, active, onBack, onContinue }: { step: LessonStep; act
 }
 
 function MiniCheckBlock({
+  lessonId,
   question,
   active,
   value,
@@ -349,6 +351,7 @@ function MiniCheckBlock({
   onBack,
   onContinue,
 }: {
+  lessonId: string;
   question: Question;
   active: boolean;
   value: AnswerValue | undefined;
@@ -364,7 +367,7 @@ function MiniCheckBlock({
     setChecking(true);
     setError(null);
     try {
-      const response = await api<PracticeCheckResult>("/practice/check", {
+      const response = await api<PracticeCheckResult>(`/lessons/${lessonId}/questions/${question.id}/check`, {
         method: "POST",
         body: JSON.stringify({ question_id: question.id, answer: toApiAnswer(question, value) }),
       });

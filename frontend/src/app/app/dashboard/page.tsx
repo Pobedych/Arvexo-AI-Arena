@@ -16,7 +16,7 @@ export default function Dashboard() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([api<ApiUser>("/auth/me"), api<Track>("/tracks/ai"), api<Tournament[]>("/tournaments"), api<ActivityDay[]>("/activity/week")])
+    Promise.all([api<ApiUser>("/auth/me"), api<Track>("/tracks/current"), api<Tournament[]>("/tournaments"), api<ActivityDay[]>("/activity/week")])
       .then(([userData, trackData, tournamentData, activityData]) => {
         setUser(userData);
         setTrack(trackData);
@@ -63,7 +63,7 @@ export default function Dashboard() {
         <Card className="rounded-[28px] p-7 flex flex-col shadow-[0_20px_48px_-38px_rgba(21,23,28,.35)]">
           <Eyebrow>Продолжить</Eyebrow>
           <h2 className="font-[family-name:var(--font-display)] text-[26px] font-medium mb-2.5 max-w-[420px]">
-            {lesson ? `Урок ${lesson.order} — ${lesson.title}` : "AI Track открыт"}
+            {lesson ? `Урок ${lesson.order} — ${lesson.title}` : `${track.title} открыт`}
           </h2>
           <p className="text-[13.5px] text-[#6b6f76] leading-relaxed mb-5 max-w-[420px]">
             {lesson?.summary || track.description}
@@ -98,7 +98,7 @@ export default function Dashboard() {
       <div className="grid sm:grid-cols-3 gap-3.5">
         <Card>
           <Link href="/app/track" className="text-[#4f964c] text-[11px] font-semibold tracking-[.12em] uppercase mb-3 block">
-            AI Track
+            {track.title}
           </Link>
           <strong className="font-[family-name:var(--font-display)] text-[34px] font-medium block">{track.completed_lessons}/{track.total_lessons}</strong>
           <p className="text-xs text-[#6b6f76]">уроков завершено</p>

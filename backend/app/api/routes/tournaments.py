@@ -68,6 +68,32 @@ def _finalize_attempts(db: Session, tournament: Tournament) -> None:
             attempt.status = ParticipationStatus.missed
 
 
+def sync_open_tournaments(db: Session) -> None:
+    tournaments = (
+        db.query(Tournament)
+        .filter(Tournament.status.in_([TournamentStatus.published, TournamentStatus.active]))
+        .with_for_update(skip_locked=True)
+        .all()
+    )
+    for tournament in tournaments:
+        _sync_status(tournament, db)
+
+
+def finalize_due_attempts(db: Session) -> None:
+    attempts = (
+        db.query(TournamentAttempt)
+        .filter(
+            TournamentAttempt.status == ParticipationStatus.in_progress,
+            TournamentAttempt.due_at.isnot(None),
+            TournamentAttempt.due_at <= now_utc(),
+        )
+        .with_for_update(skip_locked=True)
+        .all()
+    )
+    for attempt in attempts:
+        _submit_attempt(db, attempt, _tournament(db, attempt.tournament_id), auto=True)
+
+
 def _linked_lessons(db: Session, tournament: Tournament) -> list[Lesson]:
     lesson_ids = {item.question.lesson_id for item in tournament.questions if item.question.lesson_id}
     if not lesson_ids:
@@ -128,7 +154,10 @@ def _submit_attempt(db: Session, attempt: TournamentAttempt, tournament: Tournam
 def list_tournaments(db: Session = Depends(get_db), current_user: ArenaUser = Depends(get_current_user)):
     from app.models.entities import TournamentQuestion
 
-    tournaments = db.query(Tournament).options(selectinload(Tournament.questions).selectinload(TournamentQuestion.question)).order_by(Tournament.starts_at).all()
+    query = db.query(Tournament).options(selectinload(Tournament.questions).selectinload(TournamentQuestion.question))
+    if current_user.selected_track_id:
+        query = query.filter(Tournament.track_id == current_user.selected_track_id)
+    tournaments = query.order_by(Tournament.starts_at).all()
     output = []
     for tournament in tournaments:
         if tournament.status == TournamentStatus.draft:

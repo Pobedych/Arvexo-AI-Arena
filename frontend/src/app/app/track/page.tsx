@@ -2,43 +2,56 @@
 
 import Link from "next/link";
 import { type ReactNode, useEffect, useState } from "react";
-import { api, currentLesson, type Track, type TrackLesson } from "@/lib/api";
+import { api, currentLesson, type Track, type TrackLesson, type TrackSummary } from "@/lib/api";
 import { Eyebrow, Card } from "@/components/ui";
+
+const TRACK_SKILLS: Record<string, string[]> = {
+  ai: ["ML базовый", "Работа с данными", "Метрики качества", "Этика AI"],
+  math: ["Алгебра", "Функции", "Геометрия", "Координаты"],
+};
 
 export default function TrackPage() {
   const [track, setTrack] = useState<Track | null>(null);
+  const [trackOptions, setTrackOptions] = useState<TrackSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [selectingSlug, setSelectingSlug] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"sections" | "path">("sections");
 
   useEffect(() => {
-    api<Track>("/tracks/ai")
-      .then((data) => {
-        setTrack(data);
+    Promise.all([api<Track>("/tracks/current"), api<TrackSummary[]>("/tracks")])
+      .then(([trackData, options]) => {
+        setTrack(trackData);
+        setTrackOptions(options);
         setError("");
       })
-      .catch((err) => setError(err instanceof Error ? err.message : "Не удалось загрузить AI Track"))
+      .catch((err) => setError(err instanceof Error ? err.message : "Не удалось загрузить трек"))
       .finally(() => setLoading(false));
   }, []);
 
-  async function selectTrack() {
+  async function selectTrack(slug: string) {
+    if (slug === track?.slug) return;
+    setSelectingSlug(slug);
     try {
-      const selected = await api<Track>("/tracks/ai/select", { method: "POST" });
+      const selected = await api<Track>(`/tracks/${slug}/select`, { method: "POST" });
       setTrack(selected);
+      setTrackOptions((current) => current.map((option) => ({ ...option, selected: option.slug === slug })));
       setError("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось выбрать трек");
+    } finally {
+      setSelectingSlug(null);
     }
   }
 
   if (loading) {
-    return <div className="text-sm text-[#6b6f76]">Загружаем AI Track...</div>;
+    return <div className="text-sm text-[#6b6f76]">Загружаем трек...</div>;
   }
 
   if (error || !track) {
     return (
       <div className="rounded-[16px] border border-[rgba(255,77,61,.25)] bg-[rgba(255,77,61,.06)] px-5 py-4 text-sm text-[#b42318]">
-        {error || "Не удалось загрузить AI Track"}
+        {error || "Не удалось загрузить трек"}
       </div>
     );
   }
@@ -49,7 +62,7 @@ export default function TrackPage() {
     <div>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 mb-4.5">
         <div>
-          <Eyebrow>AI Track</Eyebrow>
+          <Eyebrow>{track.title}</Eyebrow>
           <h1 className="font-[family-name:var(--font-display)] text-[clamp(28px,3.6vw,44px)] font-semibold">
             Карта подготовки
           </h1>
@@ -68,7 +81,7 @@ export default function TrackPage() {
         <p className="text-[#16a34a] text-[10.5px] font-bold tracking-[.1em] uppercase mb-3">Прогресс</p>
         <strong className="font-[family-name:var(--font-display)] text-[42px] block">{track.progress_percent}%</strong>
         <p className="text-xs text-[#6b6f76] leading-relaxed">
-          {track.total_lessons} уроков: от основ AI до ответственного использования технологий
+          {track.total_lessons} уроков · {track.description}
         </p>
       </Card>
 
@@ -76,13 +89,26 @@ export default function TrackPage() {
         <Stat value={`${track.completed_lessons} / ${track.total_lessons}`} label="уроков пройдено" />
         <Stat value={`${Math.max(track.total_lessons - track.completed_lessons, 0)}`} label="осталось уроков" />
         <Stat value={track.progress_percent >= 70 ? "Готов" : "Подготовка"} label="статус к турниру" />
-        <button
-          onClick={selectTrack}
-          className="rounded-2xl bg-[#15171c] text-white py-3.5 px-4 text-left hover:opacity-90 transition-opacity focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16a34a] active:scale-[.98]"
-        >
-          <strong className="font-[family-name:var(--font-display)] text-[22px] block text-[#74bd70]">AI</strong>
-          <span className="text-[11.5px] text-white/55">выбрать трек</span>
-        </button>
+        <div className="rounded-2xl bg-[#15171c] px-4 py-3.5 text-white">
+          <strong className="font-[family-name:var(--font-display)] text-[22px] block text-[#74bd70]">{track.slug.toUpperCase()}</strong>
+          <span className="text-[11px] text-white/55">переключить трек</span>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {trackOptions.map((option) => (
+              <button
+                type="button"
+                key={option.id}
+                aria-pressed={option.slug === track.slug}
+                disabled={selectingSlug !== null}
+                onClick={() => selectTrack(option.slug)}
+                className={`min-h-7 rounded-full px-2.5 text-[10.5px] font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#74bd70] disabled:opacity-50 ${
+                  option.slug === track.slug ? "bg-[#74bd70] text-[#15171c]" : "bg-white/10 text-white/70 hover:bg-white/15"
+                }`}
+              >
+                {selectingSlug === option.slug ? "..." : option.slug === "math" ? "Math" : option.slug.toUpperCase()}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       <div className="grid lg:grid-cols-[minmax(0,1fr)_250px] gap-5 items-start">
@@ -134,7 +160,7 @@ export default function TrackPage() {
           <Card className="rounded-[20px] p-5">
             <p className="text-[#6b6f76] text-[10.5px] font-bold tracking-[.1em] uppercase mb-3">Навыки трека</p>
             <div className="flex flex-wrap gap-1.5">
-              {["ML базовый", "Работа с данными", "Метрики качества", "Этика AI"].map((skill, index) => (
+              {(TRACK_SKILLS[track.slug] ?? []).map((skill, index) => (
                 <span key={skill} className={`text-[11px] rounded-full py-1.5 px-2.5 ${index === 0 ? "bg-[#16a34a] text-white" : "bg-[#f6f4ee]"}`}>
                   {skill}
                 </span>

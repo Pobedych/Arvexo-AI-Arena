@@ -71,6 +71,8 @@ class LessonStepOut(BaseModel):
 
 class LessonOut(BaseModel):
     id: UUID
+    track_slug: str
+    track_title: str
     title: str
     summary: str
     theory: str
@@ -102,6 +104,14 @@ class TrackOut(BaseModel):
     total_lessons: int
     current_lesson_id: UUID | None
     sections: list[SectionOut]
+
+
+class TrackSummaryOut(BaseModel):
+    id: UUID
+    slug: str
+    title: str
+    description: str
+    selected: bool = False
 
 
 class TournamentOut(BaseModel):

@@ -14,6 +14,7 @@ from app.models.entities import (
     Track,
     now_utc,
 )
+from app.scripts.seed_math import seed_math
 
 
 # Each lesson: (title, theory, [question, ...])
@@ -131,6 +132,9 @@ def main() -> None:
         existing = db.query(Track).filter(Track.slug == "ai").one_or_none()
         if existing:
             print("AI Track already seeded")
+            math_track = seed_math(db)
+            db.commit()
+            print(f"Math Track ready: {math_track.id}")
             return
 
         track = Track(slug="ai", title="AI Track", description="12 уроков от основ AI до responsible AI", status=ContentStatus.published)
@@ -180,8 +184,9 @@ def main() -> None:
         db.flush()
         for order, question in enumerate(all_questions, start=1):
             db.add(TournamentQuestion(tournament_id=tournament.id, question_id=question.id, order=order))
+        math_track = seed_math(db)
         db.commit()
-        print("Seeded AI Track and AI Basics Tournament")
+        print(f"Seeded AI Track, AI Basics Tournament and Math Track {math_track.id}")
     finally:
         db.close()
 

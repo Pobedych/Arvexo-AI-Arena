@@ -227,7 +227,7 @@ export default function Practice() {
               href="/app/track"
               className="inline-flex items-center h-[42px] px-5 rounded-full bg-white/[.12] text-white font-bold text-[13px] hover:opacity-85 transition-opacity"
             >
-              К AI Track →
+              К треку →
             </Link>
           </div>
         </div>

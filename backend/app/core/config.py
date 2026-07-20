@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     cookie_samesite: str = "lax"
     admin_account_ids: str = ""
     admin_emails: str = ""
+    tournament_scheduler_enabled: bool = True
+    tournament_scheduler_interval_seconds: int = 30
 
     @staticmethod
     def split_csv(value: str) -> list[str]:
