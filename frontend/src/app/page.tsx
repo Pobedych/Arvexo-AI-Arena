@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { type CSSProperties, FormEvent, useEffect, useState } from "react";
 
 import { ArvexoLogo } from "@/components/ArvexoLogo";
@@ -19,19 +18,19 @@ const recommendations: Record<"track" | "practice" | "tournament", GoalRecommend
     title: "Начни с AI Track",
     copy: "Короткий маршрут поможет собрать базу и перейти к практике.",
     label: "Открыть AI Track",
-    href: "/tracks/ai",
+    href: "/app/track",
   },
   practice: {
     title: "Сначала собери профиль участника",
     copy: "После регистрации Arena откроет практику и сохранит твой результат.",
     label: "Начать бесплатно",
-    href: "/onboarding",
+    href: "/app/practice",
   },
   tournament: {
     title: "Выбери ближайший турнир",
     copy: "Посмотри формат, темы и время старта, затем оцени готовность.",
     label: "Смотреть турниры",
-    href: "/tournaments",
+    href: "/app/tournament",
   },
 };
 
@@ -40,19 +39,19 @@ const modes = [
     label: "AI Track",
     title: "Разобраться в теме",
     copy: "Короткие уроки, примеры и задания по машинному обучению.",
-    href: "/tracks/ai",
+    href: "/app/track",
   },
   {
     label: "Практика",
     title: "Проверить себя",
     copy: "Быстрые вопросы покажут, что повторить перед стартом.",
-    href: "/onboarding",
+    href: "/app/practice",
   },
   {
     label: "Турниры",
     title: "Выступить на арене",
     copy: "Решай задачи на время и сохраняй результат в профиле.",
-    href: "/tournaments",
+    href: "/app/tournament",
   },
 ];
 
@@ -64,8 +63,7 @@ function recommendationFor(value: string) {
 }
 
 export default function Landing() {
-  const router = useRouter();
-  const [checkingSession, setCheckingSession] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [goal, setGoal] = useState("");
   const [recommendation, setRecommendation] = useState<GoalRecommendation | null>(null);
 
@@ -74,19 +72,13 @@ export default function Landing() {
     fetch("/api/auth/me", { credentials: "include" })
       .then((response) => {
         if (cancelled) return;
-        if (response.ok) {
-          router.replace("/app/dashboard");
-        } else {
-          setCheckingSession(false);
-        }
+        setIsAuthenticated(response.ok);
       })
-      .catch(() => {
-        if (!cancelled) setCheckingSession(false);
-      });
+      .catch(() => undefined);
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, []);
 
   const submitGoal = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -100,9 +92,7 @@ export default function Landing() {
     setRecommendation(recommendationFor(value));
   };
 
-  if (checkingSession) {
-    return <div className="min-h-dvh bg-[#f6f4ee]" />;
-  }
+  const appHref = (href: string) => (isAuthenticated ? href : "/login");
 
   return (
     <div className="landing-page min-h-dvh bg-[#f6f4ee] text-[#15171c]">
@@ -121,22 +111,19 @@ export default function Landing() {
           </Link>
 
           <nav aria-label="Основная навигация" className="hidden items-center gap-1 md:flex">
-            <Link href="/tracks/ai" className="landing-nav-link rounded-full px-3 py-2 text-[12.5px] font-medium text-[#5f636b] transition-colors hover:bg-[#f1f1ef] hover:text-[#15171c]">
+            <Link href="#tracks" className="landing-nav-link rounded-full px-3 py-2 text-[12.5px] font-medium text-[#5f636b] transition-colors hover:bg-[#f1f1ef] hover:text-[#15171c]">
               AI Track
             </Link>
-            <Link href="/tournaments" className="landing-nav-link rounded-full px-3 py-2 text-[12.5px] font-medium text-[#5f636b] transition-colors hover:bg-[#f1f1ef] hover:text-[#15171c]">
+            <Link href="#tournament" className="landing-nav-link rounded-full px-3 py-2 text-[12.5px] font-medium text-[#5f636b] transition-colors hover:bg-[#f1f1ef] hover:text-[#15171c]">
               Турниры
-            </Link>
-            <Link href="/employers" className="landing-nav-link rounded-full px-3 py-2 text-[12.5px] font-medium text-[#5f636b] transition-colors hover:bg-[#f1f1ef] hover:text-[#15171c]">
-              Работодателям
             </Link>
           </nav>
 
           <Link
-            href="/login"
+            href={isAuthenticated ? "/app/dashboard" : "/login"}
             className="inline-flex h-10 shrink-0 items-center rounded-full bg-[#15171c] px-5 text-[12.5px] font-medium text-white transition-transform hover:-translate-y-px focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#15171c] active:scale-[.98]"
           >
-            Войти
+            {isAuthenticated ? "Кабинет" : "Войти"}
           </Link>
         </div>
       </header>
@@ -202,7 +189,7 @@ export default function Landing() {
                   <strong className="mt-1 block text-[15px] font-semibold">{recommendation.title}</strong>
                   <p className="mt-1 text-[12.5px] leading-relaxed text-[#5f636b]">{recommendation.copy}</p>
                 </div>
-                <Link href={recommendation.href} className="inline-flex h-11 items-center justify-center rounded-full bg-[#15171c] px-5 text-[12.5px] font-medium text-white transition-transform hover:-translate-y-px active:scale-[.98]">
+                <Link href={appHref(recommendation.href)} className="inline-flex h-11 items-center justify-center rounded-full bg-[#15171c] px-5 text-[12.5px] font-medium text-white transition-transform hover:-translate-y-px active:scale-[.98]">
                   {recommendation.label}
                 </Link>
               </div>
@@ -210,7 +197,7 @@ export default function Landing() {
           </form>
         </section>
 
-        <section className="mx-auto w-[min(1120px,calc(100%-32px))] py-24 sm:py-32" aria-labelledby="actions-title">
+        <section id="tracks" className="mx-auto w-[min(1120px,calc(100%-32px))] scroll-mt-24 py-24 sm:py-32" aria-labelledby="actions-title">
           <h2 id="actions-title" className="max-w-[760px] text-balance text-[clamp(38px,5vw,76px)] font-medium leading-[.98] tracking-[-.055em]" data-landing-reveal>
             Что можно сделать сейчас
           </h2>
@@ -218,7 +205,7 @@ export default function Landing() {
             {modes.map((mode) => (
               <Link
                 key={mode.label}
-                href={mode.href}
+                href={appHref(mode.href)}
                 className="landing-mode-row group grid min-h-[126px] items-center gap-5 border-b border-[rgba(21,23,28,.1)] py-6 hover:bg-white md:grid-cols-[140px_minmax(220px,.75fr)_minmax(260px,1fr)_28px] md:gap-7"
               >
                 <span className="text-[12px] text-[#72767d]">{mode.label}</span>
@@ -232,7 +219,7 @@ export default function Landing() {
           </div>
         </section>
 
-        <section className="mx-auto w-[min(1120px,calc(100%-32px))] py-24 sm:py-32" aria-labelledby="tournament-title">
+        <section id="tournament" className="mx-auto w-[min(1120px,calc(100%-32px))] scroll-mt-24 py-24 sm:py-32" aria-labelledby="tournament-title">
           <article className="landing-tournament grid min-h-[580px] overflow-hidden rounded-[28px] border border-[rgba(21,23,28,.1)] bg-[#e8f1e5] lg:grid-cols-[minmax(0,1.3fr)_minmax(320px,.7fr)]" data-landing-reveal>
             <div className="flex min-h-[500px] flex-col items-start p-8 sm:p-14 lg:p-[72px]">
               <span className="text-[12px] font-medium text-[#377236]">Ближайший турнир</span>
@@ -242,7 +229,7 @@ export default function Landing() {
               <p className="mt-6 max-w-[560px] text-[14px] leading-relaxed text-[#5f636b]">
                 Личный зачёт, 60 минут. Подготовься в AI Track и проверь знания перед стартом.
               </p>
-              <Link href="/tournaments" className="mt-7 inline-flex h-11 items-center rounded-full bg-[#15171c] px-5 text-[12.5px] font-medium text-white transition-transform hover:-translate-y-px active:scale-[.98]">
+              <Link href={appHref("/app/tournament")} className="mt-7 inline-flex h-11 items-center rounded-full bg-[#15171c] px-5 text-[12.5px] font-medium text-white transition-transform hover:-translate-y-px active:scale-[.98]">
                 Открыть турнир
               </Link>
             </div>
@@ -270,7 +257,7 @@ export default function Landing() {
               <p className="mt-6 max-w-[560px] text-[14px] leading-relaxed text-[#5f636b]">
                 Продолжай с того места, где остановился. Результаты уроков, практики и турниров остаются рядом.
               </p>
-              <Link href="/login" className="mt-8 inline-flex items-center gap-3 text-[13px] font-medium text-[#377e3a]">
+              <Link href={isAuthenticated ? "/app/dashboard" : "/login"} className="mt-8 inline-flex items-center gap-3 text-[13px] font-medium text-[#377e3a]">
                 Открыть обзор <span aria-hidden="true">↗</span>
               </Link>
             </div>
@@ -289,19 +276,6 @@ export default function Landing() {
           </div>
         </section>
 
-        <section className="mx-auto w-[min(1120px,calc(100%-32px))] py-24 sm:py-32" aria-labelledby="employers-title">
-          <div className="landing-employers flex min-h-[500px] flex-col items-start justify-end rounded-[28px] bg-[#15171c] p-8 text-white sm:p-16" data-landing-reveal>
-            <h2 id="employers-title" className="max-w-[850px] text-balance text-[clamp(38px,5vw,76px)] font-medium leading-[.98] tracking-[-.055em]">
-              Результат, который можно показать
-            </h2>
-            <p className="mt-6 max-w-[620px] text-[14px] leading-relaxed text-white/62">
-              Профиль участника собирает пройденные темы и турнирный опыт. Он помогает увидеть не обещания, а выполненную работу.
-            </p>
-            <Link href="/employers" className="mt-7 inline-flex h-11 items-center rounded-full bg-[#74bd70] px-5 text-[12.5px] font-medium text-[#102011] transition-transform hover:-translate-y-px active:scale-[.98]">
-              Работодателям
-            </Link>
-          </div>
-        </section>
       </main>
 
       <footer className="mt-10 border-t border-[rgba(21,23,28,.1)]">
