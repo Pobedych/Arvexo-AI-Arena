@@ -199,11 +199,31 @@ jobs:
           ARENA_HTTP_PORT="${ARENA_HTTP_PORT}" docker compose up -d postgres
 
           echo "🗄️ Applying migrations and seeding tracks in an isolated container"
-          ARENA_HTTP_PORT="${ARENA_HTTP_PORT}" docker compose run --rm --no-deps backend \
+          ARENA_HTTP_PORT="${ARENA_HTTP_PORT}" docker compose run --rm --no-deps -T backend \
             sh -c 'python -m app.scripts.migrate && python -m app.scripts.seed'
 
           echo "🚀 Starting the new application release"
           ARENA_HTTP_PORT="${ARENA_HTTP_PORT}" docker compose up -d --remove-orphans
+
+          echo "💚 Waiting for the new release to become healthy"
+          HEALTHY=0
+          for attempt in $(seq 1 15); do
+            if curl --fail --show-error --silent "http://127.0.0.1:${ARENA_HTTP_PORT}/api/health"; then
+              echo
+              HEALTHY=1
+              break
+            fi
+            echo "⏳ Backend not ready yet (attempt ${attempt}/15), retrying in 2s..."
+            sleep 2
+          done
+
+          if [ "${HEALTHY}" -ne 1 ]; then
+            echo "❌ New release did not become healthy; collecting diagnostics"
+            ARENA_HTTP_PORT="${ARENA_HTTP_PORT}" docker compose ps || true
+            ARENA_HTTP_PORT="${ARENA_HTTP_PORT}" docker compose logs --tail=80 backend frontend nginx || true
+            free -m || true
+            exit 1
+          fi
 
           ROLLBACK_ARMED=0
           trap - EXIT
@@ -211,27 +231,5 @@ jobs:
 
           echo "🧽 Cleaning temporary files"
           rm -rf "${RELEASE_DIR}" "/tmp/${RELEASE_ARCHIVE_NAME}"
-          REMOTE
-
-      - name: "💚 Health check"
-        run: |
-          set -euo pipefail
-
-          ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
-            "ARENA_HTTP_PORT='${ARENA_HTTP_PORT}' bash -s" <<'REMOTE'
-          set -euo pipefail
-
-          for attempt in $(seq 1 15); do
-            if curl --fail --show-error --silent "http://127.0.0.1:${ARENA_HTTP_PORT}/api/health"; then
-              echo
-              exit 0
-            fi
-            echo "⏳ Backend not ready yet (attempt ${attempt}/15), retrying in 2s..."
-            sleep 2
-          done
-
-          echo "❌ Backend did not become healthy in time"
-          exit 1
-          REMOTE
-
           echo "✅ Arena is healthy: https://arena.arvexo.ru"
+          REMOTE
