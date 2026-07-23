@@ -18,7 +18,7 @@ const recommendations: Record<"track" | "practice" | "tournament", GoalRecommend
     title: "Начни с AI Track",
     copy: "Короткий маршрут поможет собрать базу и перейти к практике.",
     label: "Открыть AI Track",
-    href: "/app/track",
+    href: "/tracks",
   },
   practice: {
     title: "Сначала собери профиль участника",
@@ -30,7 +30,7 @@ const recommendations: Record<"track" | "practice" | "tournament", GoalRecommend
     title: "Выбери ближайший турнир",
     copy: "Посмотри формат, темы и время старта, затем оцени готовность.",
     label: "Смотреть турниры",
-    href: "/app/tournament",
+    href: "/tournaments",
   },
 };
 
@@ -39,7 +39,7 @@ const modes = [
     label: "AI Track",
     title: "Разобраться в теме",
     copy: "Короткие уроки, примеры и задания по машинному обучению.",
-    href: "/app/track",
+    href: "/tracks",
   },
   {
     label: "Практика",
@@ -51,7 +51,7 @@ const modes = [
     label: "Турниры",
     title: "Выступить на арене",
     copy: "Решай задачи на время и сохраняй результат в профиле.",
-    href: "/app/tournament",
+    href: "/tournaments",
   },
 ];
 
@@ -111,10 +111,10 @@ export default function Landing() {
           </Link>
 
           <nav aria-label="Основная навигация" className="hidden items-center gap-1 md:flex">
-            <Link href="#tracks" className="landing-nav-link rounded-full px-3 py-2 text-[12.5px] font-medium text-[#5f636b] transition-colors hover:bg-[#f1f1ef] hover:text-[#15171c]">
-              AI Track
+            <Link href="/tracks" className="landing-nav-link rounded-full px-3 py-2 text-[12.5px] font-medium text-[#5f636b] transition-colors hover:bg-[#f1f1ef] hover:text-[#15171c]">
+              Треки
             </Link>
-            <Link href="#tournament" className="landing-nav-link rounded-full px-3 py-2 text-[12.5px] font-medium text-[#5f636b] transition-colors hover:bg-[#f1f1ef] hover:text-[#15171c]">
+            <Link href="/tournaments" className="landing-nav-link rounded-full px-3 py-2 text-[12.5px] font-medium text-[#5f636b] transition-colors hover:bg-[#f1f1ef] hover:text-[#15171c]">
               Турниры
             </Link>
           </nav>
@@ -189,7 +189,7 @@ export default function Landing() {
                   <strong className="mt-1 block text-[15px] font-semibold">{recommendation.title}</strong>
                   <p className="mt-1 text-[12.5px] leading-relaxed text-[#5f636b]">{recommendation.copy}</p>
                 </div>
-                <Link href={appHref(recommendation.href)} className="inline-flex h-11 items-center justify-center rounded-full bg-[#15171c] px-5 text-[12.5px] font-medium text-white transition-transform hover:-translate-y-px active:scale-[.98]">
+                <Link href={recommendation.href.startsWith("/app/") ? appHref(recommendation.href) : recommendation.href} className="inline-flex h-11 items-center justify-center rounded-full bg-[#15171c] px-5 text-[12.5px] font-medium text-white transition-transform hover:-translate-y-px active:scale-[.98]">
                   {recommendation.label}
                 </Link>
               </div>
@@ -205,7 +205,7 @@ export default function Landing() {
             {modes.map((mode) => (
               <Link
                 key={mode.label}
-                href={appHref(mode.href)}
+                href={mode.href.startsWith("/app/") ? appHref(mode.href) : mode.href}
                 className="landing-mode-row group grid min-h-[126px] items-center gap-5 border-b border-[rgba(21,23,28,.1)] py-6 hover:bg-white md:grid-cols-[140px_minmax(220px,.75fr)_minmax(260px,1fr)_28px] md:gap-7"
               >
                 <span className="text-[12px] text-[#72767d]">{mode.label}</span>
@@ -229,7 +229,7 @@ export default function Landing() {
               <p className="mt-6 max-w-[560px] text-[14px] leading-relaxed text-[#5f636b]">
                 Личный зачёт, 60 минут. Подготовься в AI Track и проверь знания перед стартом.
               </p>
-              <Link href={appHref("/app/tournament")} className="mt-7 inline-flex h-11 items-center rounded-full bg-[#15171c] px-5 text-[12.5px] font-medium text-white transition-transform hover:-translate-y-px active:scale-[.98]">
+              <Link href="/tournaments" className="mt-7 inline-flex h-11 items-center rounded-full bg-[#15171c] px-5 text-[12.5px] font-medium text-white transition-transform hover:-translate-y-px active:scale-[.98]">
                 Открыть турнир
               </Link>
             </div>

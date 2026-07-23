@@ -41,6 +41,7 @@ from app.schemas.api import (
     TrackUpdateIn,
 )
 from app.services.audit import log_admin_action
+from app.services.notifications import notify_lesson_published, notify_tournament_published
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -435,6 +436,8 @@ def create_lesson(payload: LessonCreateIn, admin: ArenaUser = Depends(get_curren
     )
     db.add(lesson)
     db.flush()
+    if lesson.status == ContentStatus.published:
+        notify_lesson_published(db, lesson)
     log_admin_action(db, admin, "create_lesson", "lesson", lesson.id, f"Создан урок {lesson.title}")
     db.commit()
     db.refresh(lesson)
@@ -446,6 +449,7 @@ def update_lesson(lesson_id: UUID, payload: LessonUpdateIn, admin: ArenaUser = D
     lesson = db.get(Lesson, lesson_id)
     if not lesson:
         raise HTTPException(status_code=404, detail="Lesson not found")
+    previous_status = lesson.status
     data = payload.model_dump(exclude_unset=True)
     if "section_id" in data and not db.get(Section, data["section_id"]):
         raise HTTPException(status_code=404, detail="Section not found")
@@ -460,6 +464,8 @@ def update_lesson(lesson_id: UUID, payload: LessonUpdateIn, admin: ArenaUser = D
         setattr(lesson, key, value)
     if steps is not None:
         lesson.steps = [LessonStep(title=step["title"], body=step["body"], order=step["order"]) for step in steps]
+    if previous_status != ContentStatus.published and lesson.status == ContentStatus.published:
+        notify_lesson_published(db, lesson)
     log_admin_action(db, admin, "update_lesson", "lesson", lesson.id, f"Обновлён урок {lesson.title}")
     db.commit()
     db.refresh(lesson)
@@ -662,9 +668,15 @@ def publish_tournament(tournament_id: UUID, admin: ArenaUser = Depends(get_curre
         if not exists:
             db.add(TournamentInvitation(user_id=user.id, tournament_id=tournament.id, status="created"))
             created += 1
+    notifications_created = notify_tournament_published(db, tournament, users)
     log_admin_action(db, admin, "publish_tournament", "tournament", tournament.id, f"Опубликован турнир {tournament.title}; приглашений: {created}")
     db.commit()
-    return {"ok": True, "status": tournament.status.value, "invitations_created": created}
+    return {
+        "ok": True,
+        "status": tournament.status.value,
+        "invitations_created": created,
+        "notifications_created": notifications_created,
+    }
 
 
 @router.post("/tournaments/{tournament_id}/cancel")

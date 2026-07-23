@@ -29,6 +29,43 @@ class UserOut(BaseModel):
     arena_score: float | None = None
 
 
+class NotificationOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    kind: str
+    title: str
+    body: str
+    href: str
+    created_at: datetime
+    read_at: datetime | None
+
+
+class NotificationListOut(BaseModel):
+    items: list[NotificationOut]
+    unread_count: int
+
+
+class PushKeysIn(BaseModel):
+    p256dh: str = Field(min_length=1, max_length=500)
+    auth: str = Field(min_length=1, max_length=500)
+
+
+class PushSubscriptionIn(BaseModel):
+    endpoint: str = Field(min_length=1, max_length=4000)
+    keys: PushKeysIn
+
+
+class PushUnsubscribeIn(BaseModel):
+    endpoint: str = Field(min_length=1, max_length=4000)
+
+
+class PushConfigOut(BaseModel):
+    enabled: bool
+    public_key: str | None = None
+    subscribed: bool = False
+
+
 class AnswerIn(BaseModel):
     question_id: UUID
     answer: dict[str, AnswerValue] = Field(default_factory=dict)
@@ -112,6 +149,35 @@ class TrackSummaryOut(BaseModel):
     title: str
     description: str
     selected: bool = False
+
+
+class PublicTrackSectionOut(BaseModel):
+    title: str
+    lesson_count: int
+
+
+class PublicTrackOut(BaseModel):
+    id: UUID
+    slug: str
+    title: str
+    description: str
+    section_count: int
+    lesson_count: int
+    sections: list[PublicTrackSectionOut]
+
+
+class PublicTournamentOut(BaseModel):
+    id: UUID
+    track_slug: str
+    track_title: str
+    title: str
+    description: str
+    starts_at: datetime
+    ends_at: datetime
+    duration_minutes: int
+    status: str
+    question_count: int
+    max_score: int
 
 
 class TournamentOut(BaseModel):

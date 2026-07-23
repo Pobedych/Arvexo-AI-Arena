@@ -4,7 +4,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.routes import admin, auth, health, learning, tournaments
+from app.api.routes import admin, auth, catalog, health, learning, notifications, tournaments
 from app.core.config import settings, validate_production_settings
 from app.services import scheduler
 
@@ -62,6 +62,8 @@ def on_shutdown() -> None:
 
 app.include_router(health.router)
 app.include_router(auth.router)
+app.include_router(catalog.router)
+app.include_router(notifications.router)
 app.include_router(learning.router)
 app.include_router(tournaments.router)
 app.include_router(admin.router)

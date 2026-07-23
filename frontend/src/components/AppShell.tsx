@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { ArvexoLogo } from "@/components/ArvexoLogo";
+import { NotificationCenter } from "@/components/NotificationCenter";
 import { api, STREAK_UPDATED_EVENT, type ApiUser } from "@/lib/api";
 
 function streakLabel(days: number) {
@@ -79,6 +80,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           <ArvexoLogo wordmarkClassName="hidden sm:inline" />
         </Link>
         <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
+          {user && <NotificationCenter />}
           {user && (
             <details ref={streakDetailsRef} name="header-progress" className="group relative block">
               <summary

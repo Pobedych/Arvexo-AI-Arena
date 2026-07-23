@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+backend/.vapid/
 
 # Editor and agent state
 .claude/

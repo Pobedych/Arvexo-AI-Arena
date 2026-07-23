@@ -14,6 +14,27 @@ export type ApiUser = {
   arena_score: number | null;
 };
 
+export type ArenaNotification = {
+  id: string;
+  kind: "tournament" | "lesson" | "streak_reminder" | string;
+  title: string;
+  body: string;
+  href: string;
+  created_at: string;
+  read_at: string | null;
+};
+
+export type NotificationList = {
+  items: ArenaNotification[];
+  unread_count: number;
+};
+
+export type PushConfig = {
+  enabled: boolean;
+  public_key: string | null;
+  subscribed: boolean;
+};
+
 export type TrackLesson = {
   id: string;
   title: string;
@@ -50,6 +71,30 @@ export type TrackSummary = {
   title: string;
   description: string;
   selected: boolean;
+};
+
+export type PublicTrack = {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  section_count: number;
+  lesson_count: number;
+  sections: Array<{ title: string; lesson_count: number }>;
+};
+
+export type PublicTournament = {
+  id: string;
+  track_slug: string;
+  track_title: string;
+  title: string;
+  description: string;
+  starts_at: string;
+  ends_at: string;
+  duration_minutes: number;
+  status: "active" | "upcoming" | "finished" | string;
+  question_count: number;
+  max_score: number;
 };
 
 export type ActivityDay = {

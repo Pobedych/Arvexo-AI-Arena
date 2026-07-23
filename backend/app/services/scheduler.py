@@ -26,6 +26,7 @@ def _unlock(db) -> None:
 
 def run_once() -> None:
     from app.api.routes.tournaments import finalize_due_attempts, sync_open_tournaments
+    from app.services.notifications import dispatch_streak_reminders
 
     db = SessionLocal()
     locked = False
@@ -35,6 +36,7 @@ def run_once() -> None:
             return
         sync_open_tournaments(db)
         finalize_due_attempts(db)
+        dispatch_streak_reminders(db)
         db.commit()
     except Exception:
         db.rollback()

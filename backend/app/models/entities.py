@@ -71,6 +71,12 @@ class ParticipationStatus(str, enum.Enum):
     missed = "missed"
 
 
+class NotificationKind(str, enum.Enum):
+    tournament = "tournament"
+    lesson = "lesson"
+    streak_reminder = "streak_reminder"
+
+
 class ArenaUser(TimestampMixin, Base):
     __tablename__ = "arena_users"
 
@@ -91,6 +97,8 @@ class ArenaUser(TimestampMixin, Base):
     last_active_date: Mapped[date | None] = mapped_column(Date)
 
     sessions: Mapped[list["ArenaSession"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    notifications: Mapped[list["Notification"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    push_subscriptions: Mapped[list["PushSubscription"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
     @property
     def level(self) -> int:
@@ -207,6 +215,37 @@ class ActivityLog(TimestampMixin, Base):
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("arena_users.id"), nullable=False)
     activity_date: Mapped[date] = mapped_column(Date, nullable=False)
     action_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+
+class Notification(TimestampMixin, Base):
+    __tablename__ = "notifications"
+    __table_args__ = (UniqueConstraint("user_id", "dedupe_key", name="uq_user_notification_dedupe"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("arena_users.id"), index=True, nullable=False)
+    kind: Mapped[NotificationKind] = mapped_column(Enum(NotificationKind), nullable=False)
+    title: Mapped[str] = mapped_column(String(180), nullable=False)
+    body: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    href: Mapped[str] = mapped_column(String(500), default="/app/dashboard", nullable=False)
+    dedupe_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    push_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    user: Mapped[ArenaUser] = relationship(back_populates="notifications")
+
+
+class PushSubscription(TimestampMixin, Base):
+    __tablename__ = "push_subscriptions"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("arena_users.id"), index=True, nullable=False)
+    endpoint_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
+    endpoint: Mapped[str] = mapped_column(Text, nullable=False)
+    p256dh: Mapped[str] = mapped_column(String(500), nullable=False)
+    auth: Mapped[str] = mapped_column(String(500), nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    user: Mapped[ArenaUser] = relationship(back_populates="push_subscriptions")
 
 
 class AdminActionLog(Base):

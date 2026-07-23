@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     admin_emails: str = ""
     tournament_scheduler_enabled: bool = True
     tournament_scheduler_interval_seconds: int = 30
+    web_push_vapid_public_key: str = ""
+    web_push_vapid_private_key: str = ""
+    web_push_vapid_subject: str = "mailto:support@arvexo.ru"
+    streak_reminder_hour_utc: int = 17
 
     @staticmethod
     def split_csv(value: str) -> list[str]:
@@ -42,6 +46,10 @@ class Settings(BaseSettings):
     def admin_email_list(self) -> list[str]:
         return [email.lower() for email in self.split_csv(self.admin_emails)]
 
+    @property
+    def web_push_enabled(self) -> bool:
+        return bool(self.web_push_vapid_public_key and self.web_push_vapid_private_key)
+
 
 def validate_production_settings(settings: "Settings") -> None:
     if settings.app_env != "production":
@@ -56,6 +64,10 @@ def validate_production_settings(settings: "Settings") -> None:
         raise ValueError("Production account_api_url must use HTTPS")
     if settings.database_url.startswith("sqlite"):
         raise ValueError("Production database_url must not be SQLite")
+    if bool(settings.web_push_vapid_public_key) != bool(settings.web_push_vapid_private_key):
+        raise ValueError("Both Web Push VAPID keys must be configured together")
+    if settings.web_push_enabled and not settings.web_push_vapid_subject.startswith(("mailto:", "https://")):
+        raise ValueError("Web Push VAPID subject must start with mailto: or https://")
 
 
 @lru_cache
