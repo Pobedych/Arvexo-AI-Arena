@@ -199,7 +199,7 @@ jobs:
           ARENA_HTTP_PORT="${ARENA_HTTP_PORT}" docker compose up -d postgres
 
           echo "🗄️ Applying migrations and seeding tracks in an isolated container"
-          ARENA_HTTP_PORT="${ARENA_HTTP_PORT}" docker compose run --rm --no-deps -T backend \
+          ARENA_HTTP_PORT="${ARENA_HTTP_PORT}" docker compose run --rm --no-deps --interactive=false -T backend \
             sh -c 'python -m app.scripts.migrate && python -m app.scripts.seed'
 
           echo "🚀 Starting the new application release"
