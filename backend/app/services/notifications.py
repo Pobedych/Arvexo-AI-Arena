@@ -3,7 +3,6 @@ import logging
 from datetime import datetime, timedelta
 from uuid import UUID
 
-from pywebpush import WebPushException, webpush
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -105,6 +104,13 @@ def _send_push(db: Session, user_id: UUID, notification: Notification) -> bool:
         .filter(PushSubscription.user_id == user_id, PushSubscription.enabled == True)  # noqa: E712
         .all()
     )
+    if not subscriptions:
+        return False
+
+    # pywebpush pulls in the cryptography stack. Import it only when there is
+    # an actual delivery to make so ordinary API and seed processes stay lean.
+    from pywebpush import WebPushException, webpush
+
     payload = json.dumps(
         {
             "title": notification.title,

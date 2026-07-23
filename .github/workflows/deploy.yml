@@ -158,25 +158,56 @@ jobs:
             echo "⚠️ Created backend/.env from example. Update production secrets on the server."
           fi
 
-          echo "🐳 Rebuilding Docker services"
+          echo "📌 Saving current application images for rollback"
           cd "${VPS_PROJECT_PATH}"
-          ARENA_HTTP_PORT="${ARENA_HTTP_PORT}" docker compose up -d --build
 
-          echo "🌱 Seeding AI Track"
-          set +e
-          SEED_OUTPUT="$(docker compose exec -T backend python -m app.scripts.seed 2>&1)"
-          SEED_EXIT=$?
-          set -e
-          printf '%s\n' "${SEED_OUTPUT}"
+          PREVIOUS_BACKEND_IMAGE="$(docker inspect --format '{{.Image}}' arvexo-arena-backend 2>/dev/null || true)"
+          PREVIOUS_FRONTEND_IMAGE="$(docker inspect --format '{{.Image}}' arvexo-arena-frontend 2>/dev/null || true)"
 
-          if [ "${SEED_EXIT}" -ne 0 ]; then
-            if printf '%s\n' "${SEED_OUTPUT}" | grep -Eq 'Seeded AI Track|AI Track already seeded'; then
-              echo "⚠️ Seed command exited with ${SEED_EXIT}, but data seeding completed. Continuing to health check."
-            else
-              echo "❌ Seed command failed with exit code ${SEED_EXIT}"
-              exit "${SEED_EXIT}"
-            fi
+          if [ -n "${PREVIOUS_BACKEND_IMAGE}" ]; then
+            docker image tag "${PREVIOUS_BACKEND_IMAGE}" arvexo-arena-backend:rollback
           fi
+          if [ -n "${PREVIOUS_FRONTEND_IMAGE}" ]; then
+            docker image tag "${PREVIOUS_FRONTEND_IMAGE}" arvexo-arena-frontend:rollback
+          fi
+
+          echo "🐳 Building new application images"
+          ARENA_HTTP_PORT="${ARENA_HTTP_PORT}" docker compose build
+
+          ROLLBACK_ARMED=1
+          rollback_release() {
+            status=$?
+            trap - EXIT
+            if [ "${status}" -eq 0 ] || [ "${ROLLBACK_ARMED}" -ne 1 ]; then
+              exit "${status}"
+            fi
+
+            echo "↩️ Deployment failed; restoring previous application images"
+            if docker image inspect arvexo-arena-backend:rollback >/dev/null 2>&1; then
+              docker image tag arvexo-arena-backend:rollback arvexo-arena-backend:latest
+            fi
+            if docker image inspect arvexo-arena-frontend:rollback >/dev/null 2>&1; then
+              docker image tag arvexo-arena-frontend:rollback arvexo-arena-frontend:latest
+            fi
+            ARENA_HTTP_PORT="${ARENA_HTTP_PORT}" docker compose up -d --force-recreate backend frontend nginx || true
+            exit "${status}"
+          }
+          trap rollback_release EXIT
+
+          echo "🧊 Stopping application containers to release memory"
+          ARENA_HTTP_PORT="${ARENA_HTTP_PORT}" docker compose stop backend frontend nginx
+          ARENA_HTTP_PORT="${ARENA_HTTP_PORT}" docker compose up -d postgres
+
+          echo "🗄️ Applying migrations and seeding tracks in an isolated container"
+          ARENA_HTTP_PORT="${ARENA_HTTP_PORT}" docker compose run --rm --no-deps backend \
+            sh -c 'python -m app.scripts.migrate && python -m app.scripts.seed'
+
+          echo "🚀 Starting the new application release"
+          ARENA_HTTP_PORT="${ARENA_HTTP_PORT}" docker compose up -d --remove-orphans
+
+          ROLLBACK_ARMED=0
+          trap - EXIT
+          docker image rm arvexo-arena-backend:rollback arvexo-arena-frontend:rollback >/dev/null 2>&1 || true
 
           echo "🧽 Cleaning temporary files"
           rm -rf "${RELEASE_DIR}" "/tmp/${RELEASE_ARCHIVE_NAME}"
