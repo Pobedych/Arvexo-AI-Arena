@@ -15,6 +15,7 @@ from app.models.entities import (
     now_utc,
 )
 from app.scripts.seed_math import seed_math
+from app.services.notifications import backfill_content_notifications
 
 
 # Each lesson: (title, theory, [question, ...])
@@ -133,8 +134,10 @@ def main() -> None:
         if existing:
             print("AI Track already seeded")
             math_track = seed_math(db)
+            notifications_created = backfill_content_notifications(db)
             db.commit()
             print(f"Math Track ready: {math_track.id}")
+            print(f"Content notifications ready: {notifications_created} created")
             return
 
         track = Track(slug="ai", title="AI Track", description="12 уроков от основ AI до responsible AI", status=ContentStatus.published)
@@ -185,8 +188,10 @@ def main() -> None:
         for order, question in enumerate(all_questions, start=1):
             db.add(TournamentQuestion(tournament_id=tournament.id, question_id=question.id, order=order))
         math_track = seed_math(db)
+        notifications_created = backfill_content_notifications(db)
         db.commit()
         print(f"Seeded AI Track, AI Basics Tournament and Math Track {math_track.id}")
+        print(f"Content notifications ready: {notifications_created} created")
     finally:
         db.close()
 

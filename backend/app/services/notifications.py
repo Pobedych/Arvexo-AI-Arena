@@ -3,6 +3,7 @@ import logging
 from datetime import datetime, timedelta
 from uuid import UUID
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -13,6 +14,9 @@ from app.models.entities import (
     NotificationKind,
     PushSubscription,
     Section,
+    ContentStatus,
+    TournamentStatus,
+    Track,
     Tournament,
     now_utc,
 )
@@ -93,6 +97,62 @@ def notify_tournament_published(db: Session, tournament: Tournament, users: list
             dedupe_key=f"tournament-published:{tournament.id}",
         )
         created += int(was_created)
+    return created
+
+
+def backfill_content_notifications(db: Session) -> int:
+    """Create one useful catalog notice per track plus visible tournament notices.
+
+    Seeded content does not pass through the admin publish endpoints, so users
+    who already selected a track would otherwise never hear about it. The
+    lesson count is part of the dedupe key: rerunning the seed is idempotent,
+    while a genuinely expanded seeded track produces a fresh summary.
+    """
+    lesson_catalogs = {
+        track_id: (track_title, lesson_count)
+        for track_id, track_title, lesson_count in (
+            db.query(Track.id, Track.title, func.count(Lesson.id))
+            .join(Section, Section.track_id == Track.id)
+            .join(Lesson, Lesson.section_id == Section.id)
+            .filter(Track.status == ContentStatus.published, Lesson.status == ContentStatus.published)
+            .group_by(Track.id, Track.title)
+            .all()
+        )
+    }
+    users = (
+        db.query(ArenaUser)
+        .filter(ArenaUser.is_active == True, ArenaUser.selected_track_id.is_not(None))  # noqa: E712
+        .all()
+    )
+
+    created = 0
+    users_by_track: dict[UUID, list[ArenaUser]] = {}
+    for user in users:
+        users_by_track.setdefault(user.selected_track_id, []).append(user)
+        catalog = lesson_catalogs.get(user.selected_track_id)
+        if not catalog:
+            continue
+        track_title, lesson_count = catalog
+        _, was_created = create_notification(
+            db,
+            user_id=user.id,
+            kind=NotificationKind.lesson,
+            title=f"Уроки в {track_title} уже доступны",
+            body=f"В программе {lesson_count} уроков. Начни с первого или продолжай обучение.",
+            href="/app/track",
+            dedupe_key=f"seeded-lessons:{user.selected_track_id}:{lesson_count}",
+        )
+        created += int(was_created)
+
+    tournaments = (
+        db.query(Tournament)
+        .filter(Tournament.status.in_([TournamentStatus.published, TournamentStatus.active]))
+        .all()
+    )
+    for tournament in tournaments:
+        recipients = users_by_track.get(tournament.track_id, [])
+        if recipients:
+            created += notify_tournament_published(db, tournament, recipients)
     return created
 
 

@@ -7,8 +7,19 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
-from app.models.entities import ArenaUser, Lesson, Notification, NotificationKind, Section, Tournament, Track
+from app.models.entities import (
+    ArenaUser,
+    ContentStatus,
+    Lesson,
+    Notification,
+    NotificationKind,
+    Section,
+    Tournament,
+    TournamentStatus,
+    Track,
+)
 from app.services.notifications import (
+    backfill_content_notifications,
     create_notification,
     dispatch_streak_reminders,
     notify_lesson_published,
@@ -78,6 +89,40 @@ class NotificationTests(unittest.TestCase):
         self.assertEqual([row.kind for row in rows], [NotificationKind.lesson, NotificationKind.tournament])
         self.assertEqual(rows[0].href, "/app/track")
         self.assertEqual(rows[1].href, "/app/tournament")
+
+    def test_backfill_summarizes_seeded_content_without_duplicates(self):
+        track = Track(slug="ai", title="AI Track", description="", status=ContentStatus.published)
+        self.db.add(track)
+        self.db.flush()
+        section = Section(track_id=track.id, title="Основы", order=1)
+        self.db.add(section)
+        self.db.flush()
+        self.db.add_all(
+            [
+                Lesson(section_id=section.id, title="AI", summary="", theory="Теория", order=1, status=ContentStatus.published),
+                Lesson(section_id=section.id, title="ML", summary="", theory="Теория", order=2, status=ContentStatus.published),
+                Lesson(section_id=section.id, title="Черновик", summary="", theory="Теория", order=3, status=ContentStatus.draft),
+                Tournament(
+                    track_id=track.id,
+                    title="AI Sprint",
+                    description="Турнир по основам AI",
+                    starts_at=self.now + timedelta(days=1),
+                    ends_at=self.now + timedelta(days=2),
+                    status=TournamentStatus.active,
+                ),
+            ]
+        )
+        self.user.selected_track_id = track.id
+        self.db.commit()
+
+        self.assertEqual(backfill_content_notifications(self.db), 2)
+        self.assertEqual(backfill_content_notifications(self.db), 0)
+        self.db.commit()
+
+        rows = self.db.query(Notification).order_by(Notification.created_at).all()
+        self.assertEqual(len(rows), 2)
+        self.assertEqual([row.kind for row in rows], [NotificationKind.lesson, NotificationKind.tournament])
+        self.assertIn("2 уроков", rows[0].body)
 
     @patch("app.services.notifications._send_push", return_value=True)
     def test_streak_reminder_is_sent_only_once_per_day(self, send_push):
