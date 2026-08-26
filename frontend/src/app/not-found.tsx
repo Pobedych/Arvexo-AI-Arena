@@ -3,6 +3,8 @@ import { ErrorScene } from "@/components/ErrorScene";
 
 export const metadata: Metadata = {
   title: "404 — модель не нашла закономерность",
+  alternates: { canonical: null },
+  robots: { index: false, follow: false },
 };
 
 export default function NotFound() {

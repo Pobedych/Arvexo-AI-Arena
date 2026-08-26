@@ -137,7 +137,7 @@ export default function Landing() {
               <span className="landing-hero-word" style={{ "--word-index": 2 } as CSSProperties}>подготовиться?</span>
             </h1>
             <p className="mx-auto mt-6 max-w-[610px] text-[clamp(15px,1.5vw,19px)] leading-relaxed text-[#5f636b]">
-              Опиши цель. Arena предложит урок, практику или ближайший турнир.
+              Готовься к олимпиадам и AI-турнирам: опиши цель, а Arena предложит учебный трек, практику или ближайшее соревнование.
             </p>
           </div>
 
@@ -283,7 +283,12 @@ export default function Landing() {
           <Link href="/" className="flex items-center gap-2.5 text-[#15171c]">
             <ArvexoLogo />
           </Link>
-          <span>AI-обучение и соревнования для школьников</span>
+          <nav aria-label="Ссылки в подвале" className="flex flex-wrap items-center gap-x-5 gap-y-2">
+            <Link href="/tracks" className="hover:text-[#15171c]">Треки</Link>
+            <Link href="/tournaments" className="hover:text-[#15171c]">Турниры</Link>
+            <Link href="/employers" className="hover:text-[#15171c]">Работодателям</Link>
+            <a href="https://arvexo.ru" className="hover:text-[#15171c]">Arvexo</a>
+          </nav>
         </div>
       </footer>
     </div>

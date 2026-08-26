@@ -47,6 +47,7 @@ export function PublicCatalogChrome({ active, isAuthenticated, children }: Publi
           <div className="flex gap-5">
             <Link href="/tracks" className="hover:text-[#15171c]">Треки</Link>
             <Link href="/tournaments" className="hover:text-[#15171c]">Турниры</Link>
+            <Link href="/employers" className="hover:text-[#15171c]">Работодателям</Link>
           </div>
         </div>
       </footer>
